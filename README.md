@@ -13,9 +13,14 @@
 - 공중에서 공격 + 방향키 → 스파이크 방향·세기 조절
 - 땅에서 공격 + 좌우 → 다이빙
 - Backspace 빠르게 3번 → 0:0으로 재시작
+- 스킬: 왼쪽 Shift, 오른쪽 숫자패드 5 또는 ; (스파이크를 5번 맞혀 마나를 채우면 사용)
+- 시작 전 캐릭터 선택: 왼쪽 D/G + Z, 오른쪽 ←/→ + Enter
 
 ## 이미지 바꾸기
 `assets` 폴더에 아래 이름으로 넣으면 자동으로 적용돼요. (없으면 기본 그림)
-- `background.png` — 배경 (960×540 추천)
+- `background.png` — 배경 (864×608 추천)
 - `player1.png`, `player2.png` — 선수 (배경 투명 PNG, **오른쪽을 보는** 그림)
 - `ball.png` — 공 (선택)
+
+## 참고
+게임 규칙(물리 숫자)은 원작 피카츄 배구를 분석한 [gorisanson/pikachu-volleyball](https://github.com/gorisanson/pikachu-volleyball)을 참고해 직접 작성했어요. 코드와 그림은 가져오지 않았어요.
