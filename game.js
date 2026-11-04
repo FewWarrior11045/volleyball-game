@@ -17,7 +17,7 @@ const CHARACTERS = [
   { name: '무표정맨', grade: 'COMMON', type: 'face', img: 'assets/face1.png', skill: null,
     skillName: '???', desc: ['특수능력 준비 중'] },
   { name: '장민욱', grade: 'COMMON', type: 'sprite', img: 'assets/minwook.png', w: 58, h: 58, skill: 'meteor',
-    skillName: '메테오 서브', desc: ['거대 운석 낙하 + 벽 3번 튕겨 꽂기!', '상대 납작·느려짐·판정↓, 공 빨라짐'] },
+    skillName: '메테오 서브', desc: ['거대 운석 + 벽 3번 튕겨 꽂기!', '상대 납작·느림, 공 빨라짐'] },
   { name: '키다리', grade: 'EPIC', type: 'sprite', img: 'assets/tall.png', w: 30, h: 70, skill: 'giant',
     skillName: '거인화', desc: ['5초 동안 키가 3배!', '높은 공도 다 막는다'] },
   { name: '김지연', grade: 'RARE', type: 'sprite', img: 'assets/swim.png', w: 40, h: 68, skill: 'whirl',
@@ -29,13 +29,27 @@ const CHARACTERS = [
     skillName: '민주주의 제1장', desc: ['영역전개! 9명으로 분신했다가', '거대 지팡이로 공을 꽂아 넣음'] },
   { name: '파티왕', grade: 'EPIC', type: 'face', img: 'assets/wonder.png', skill: 'party',
     skillName: '미러볼 파티', desc: ['미러볼 + 팬 10명 등장!', '6초 동안 팬들이 공을 대신 침'] },
+  { name: '역사왕', grade: 'EPIC', type: 'face', img: 'assets/dongwoo.png', skill: 'history',
+    skillName: '위인 강림', desc: ['랜덤 위인 빙의! (3종)', '명량해전·신의 한 서브·해례본'] },
 ];
 // 등급 색깔
 const GRADE_COLOR = { COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f' };
 
 // 스킬 시간 (25프레임 = 1초)
-const SKILL_FRAMES = { giant: 125, whirl: 75, hairbeam: 125, democracy: 8, meteor: 8, party: 150 };
+const SKILL_FRAMES = { giant: 125, whirl: 75, hairbeam: 125, democracy: 8, meteor: 8, party: 150, history: 8 };
 const PARTY_INTRO = 62; // 파티 시작 연출 (2.5초, 경기 멈춤)
+// 위인 강림 (랜덤 3종)
+const HIST_REVEAL = 30, HIST_FIRE = 74, HIST_END = 80;
+const HEROES = [
+  { key: 'ship', title: '충무공의 궤적: 명량해전', who: '이순신 장군', color: '#ff4a3a',
+    line: '죽고자 하는 자는 살고, 살고자 하는 자는 죽는다! 울돌목의 파도를 받아라!' },
+  { key: 'arrow', title: '태조의 정벌: 신의 한 서브', who: '이성계', color: '#ff7a2a',
+    line: '백발백중의 활시위다. 내 궁시(弓矢)는 한 치의 오차도 없다!' },
+  { key: 'hangul', title: '훈민의 통찰: 해례본', who: '세종대왕', color: '#ffd84d',
+    line: '너희의 동선은 이미 훈민정음처럼 명백하게 풀어냈다.' },
+];
+const JAMO = 'ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣ';
+const glyphs = []; // 코트 바닥에 흩뿌려진 한글
 let party = null;       // { side, girls, cd } 파티 중인 쪽
 const DEMO_FRAMES = 80;    // 민주주의 영역전개 연출 길이 (3.2초, 모든 게 슬로우)
 const DEMO_HIT = 74;       // 지팡이가 공을 치는 순간
@@ -161,7 +175,7 @@ function resetRound(server) {
   if (party) party.girls.forEach((g) => (g.jumpT = 0));
   Object.assign(ball, { x: server === 0 ? LEFT_SERVE_X : RIGHT_SERVE_X, y: 0, vx: 0, vy: 1, power: false, unblockable: false, trail: [] });
   effects.length = 0;
-  craters.length = 0; smokes.length = 0; shake = 0; ball.meteor = false; ballBoost = 1; ball.path = null; ball.pathFrom = null;
+  craters.length = 0; smokes.length = 0; shake = 0; ball.meteor = false; ballBoost = 1; glyphs.length = 0; ball.hero = null; ball.path = null; ball.pathFrom = null;
   state = 'ready';
   timer = 0; // "Ready?" 30프레임(1.2초) 깜빡이며 화면 밝아짐
 }
@@ -195,7 +209,11 @@ function updatePlayer(p, inp) {
       for (let i = 0; i < 70; i++) candles.push({ x: Math.random() * GW, y: 20 + Math.random() * 270, d: Math.random() * 14, s: 0.6 + Math.random() * 0.8, f: Math.random() * 6 });
       cine = { kind: 'democracy', t: 0, caster: p, target: players[1 - p.side], candles, counter: Math.random() < (dictTest ? 1 : DICTATOR_CHANCE) };
     }
-    if (ch.skill === 'party') {
+    if (ch.skill === 'history') {
+      const hero = HEROES[Math.floor(Math.random() * HEROES.length)];
+      cine = { kind: 'history', t: 0, caster: p, target: players[1 - p.side], hero, jamo: [] };
+      sfx('whoosh');
+    } else if (ch.skill === 'party') {
       const girls = [];
       const hues = [330, 280, 200, 50, 0, 160, 300, 20, 240, 100];
       for (let i = 0; i < 10; i++) {
@@ -280,6 +298,8 @@ function updateBall() {
     players.forEach((pl) => { pl.frozen = false; pl.forceBump = false; });
     effects.push({ x: ball.x, y: BALL_GROUND_Y + 20, t: 8 });
     if (ball.meteor) meteorImpact(ball.x);
+    if (ball.hero === 'ship') { shake = 10; sfx('explode'); for (let i = 0; i < 3; i++) effects.push({ x: ball.x, y: 270, t: 8 - i }); }
+    ball.hero = null;
     return true;
   }
   ball.trail.push({ x: ball.x, y: ball.y });
@@ -327,6 +347,7 @@ function followPath() {
 // ----- 선수가 공에 맞았을 때 -----
 function hitBall(p, inp) {
   if (ball.meteor) { ball.meteor = false; shake = Math.max(shake, 4); sfx('thud'); } // 메테오를 받아냄!
+  ball.hero = null;
   // 독재로 막는 중이면 그냥 받기만 (스파이크·스킬 없음)
   const bumpOnly = p.forceBump;
   if (bumpOnly) { p.forceBump = false; p.frozen = false; p.redT = 20; effects.push({ x: ball.x, y: ball.y, t: 8 }); }
@@ -567,6 +588,171 @@ function drawDomain() {
   if (t >= DEMO_HIT && t < DEMO_HIT + 3) { ctx.fillStyle = `rgba(255,255,255,${0.7 - (t - DEMO_HIT) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
   // 이 연출 중엔 공을 맨 위에 다시 그림
   if (t >= DEMO_HIT) drawBall();
+}
+
+// ----- 위인 강림 (이동우) -----
+function updateHistory() {
+  const c = cine, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, h = c.hero.key;
+  c.t++;
+  players.forEach((p) => p.anim++);
+  if (c.t === HIST_REVEAL) { sfx(h === 'arrow' ? 'twang' : h === 'hangul' ? 'chime' : 'boom'); shake = 5; }
+  if (h === 'hangul' && c.t > HIST_REVEAL && c.t % 2 === 0 && c.jamo.length < 40) {
+    c.jamo.push({ ch: JAMO[Math.floor(Math.random() * JAMO.length)], x: P.x, y: P.y - 20,
+      tx: 20 + Math.random() * (GW - 40), ty: 262 + Math.random() * 30, k: 0 });
+  }
+  for (const j of c.jamo) j.k = Math.min(1, j.k + 0.06);
+  if (c.t === HIST_FIRE) {
+    ball.trail = []; ball.unblockable = false; ball.meteor = false; ball.hero = h;
+    if (h === 'ship') {
+      // 명량해전: 거센 물살과 함께 강하게 내리꽂는 강타
+      const tx = s > 0 ? 300 + Math.random() * 80 : 52 + Math.random() * 80;
+      ball.x = P.x + s * 20; ball.y = 90;
+      ball.vx = Math.round((tx - ball.x) / 5); ball.vy = Math.round((BALL_GROUND_Y - ball.y) / 5 - 2.5);
+      ball.power = true; shake = 10; sfx('explode');
+    } else if (h === 'arrow') {
+      // 신의 한 서브: 화살처럼 일직선으로 빈 구석에 꽂힘 (백발백중, 못 막음)
+      const tx = s > 0 ? GW - 22 : 22; // 엔드라인 구석
+      ball.x = P.x + s * 16; ball.y = 60;
+      ball.vx = (tx - ball.x) / 4; ball.vy = (BALL_GROUND_Y - ball.y) / 4 - 1.5;
+      ball.power = true; ball.unblockable = true; sfx('twang');
+    } else {
+      // 해례본: 상대가 얼어붙은 사이 빈 곳으로 스르륵 떨어지는 페인트
+      // 상대가 네트에서 멀면 네트 바로 너머로, 가까우면 뒤쪽 구석으로
+      const tx = Math.abs(T.x - NET_X) > 80 ? NET_X + s * 48 : (s > 0 ? GW - 26 : 26);
+      ball.x = NET_X - s * 28; ball.y = 130;
+      const vy = -8, Tf = (0.5 - vy) + Math.sqrt((vy - 0.5) * (vy - 0.5) + 2 * (BALL_GROUND_Y - ball.y));
+      ball.vy = vy; ball.vx = (tx - ball.x) / Tf;
+      ball.power = false;
+      T.frozen = true; T.redT = 0;
+      popups.push({ text: '?!', x: T.x, y: T.y - 40, t: 40, color: '#ffd84d' });
+      for (const j of c.jamo) glyphs.push({ ch: j.ch, x: j.tx, y: j.ty, t: 120 });
+    }
+    P.collided = true;
+    effects.push({ x: ball.x, y: ball.y, t: 8 });
+  }
+  if (c.t >= HIST_END) cine = null;
+}
+
+function drawWaves(t, k) {
+  for (let L = 0; L < 3; L++) {
+    const base = 300 - Math.min(1, k) * (60 + L * 26);
+    ctx.fillStyle = ['rgba(40,90,160,.75)', 'rgba(70,140,210,.6)', 'rgba(200,235,255,.5)'][L];
+    ctx.beginPath(); ctx.moveTo(0, GH);
+    for (let x = 0; x <= GW; x += 8) ctx.lineTo(x, base + Math.sin(x / 26 + t * (0.3 + L * 0.1)) * (8 + L * 3));
+    ctx.lineTo(GW, GH); ctx.fill();
+  }
+  // 물보라
+  ctx.fillStyle = 'rgba(255,255,255,.8)';
+  for (let i = 0; i < 18; i++) {
+    const x = (i * 47 + t * 4) % GW, y = 300 - k * 120 + Math.sin(t * 0.4 + i) * 10;
+    ctx.beginPath(); ctx.arc(x, y, 1.5 + (i % 3), 0, 7); ctx.fill();
+  }
+}
+
+function drawGiantSword(x, y, t, k, s) {
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(-s * 0.25);
+  ctx.globalAlpha = 0.85 * k;
+  ctx.shadowColor = '#ff2a2a'; ctx.shadowBlur = 18;
+  const L = 190 * k;
+  const g = ctx.createLinearGradient(0, 0, 0, -L);
+  g.addColorStop(0, '#ff3a2a'); g.addColorStop(1, '#ffd0c0');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(-5, -L + 16); ctx.lineTo(0, -L); ctx.lineTo(5, -L + 16); ctx.lineTo(7, 0); ctx.fill();
+  ctx.fillStyle = '#7a1a10'; ctx.fillRect(-20, 0, 40, 6); ctx.fillRect(-4, 6, 8, 26);
+  ctx.restore();
+}
+
+function drawBow(x, y, t, k, s) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, 1);
+  ctx.globalAlpha = k; ctx.shadowColor = '#ff6a2a'; ctx.shadowBlur = 12;
+  ctx.strokeStyle = '#8a3a10'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(-10, 0, 60, -1.1, 1.1); ctx.stroke();
+  const pull = Math.min(1, (t - HIST_REVEAL) / 30) * 34;
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+  const ex = -10 + Math.cos(1.1) * 60, ey = Math.sin(1.1) * 60;
+  ctx.beginPath(); ctx.moveTo(ex, -ey); ctx.lineTo(-pull, 0); ctx.lineTo(ex, ey); ctx.stroke();
+  // 화살
+  ctx.strokeStyle = '#ffcf9a'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-pull, 0); ctx.lineTo(80 - pull, 0); ctx.stroke();
+  ctx.fillStyle = '#ff3a2a';
+  ctx.beginPath(); ctx.moveTo(96 - pull, 0); ctx.lineTo(78 - pull, -9); ctx.lineTo(78 - pull, 9); ctx.fill();
+  ctx.restore();
+}
+
+function drawHistory() {
+  const c = cine, t = c.t, P = c.caster, T = c.target, hero = c.hero, s = P.side === 0 ? 1 : -1;
+  const k = t > HIST_END - 6 ? (HIST_END - t) / 6 : Math.min(1, t / 6);
+  // 먹빛 배경 + 금색 테두리
+  const bg = ctx.createLinearGradient(0, 0, 0, GH);
+  bg.addColorStop(0, `rgba(10,14,30,${0.85 * k})`); bg.addColorStop(1, `rgba(30,20,10,${0.85 * k})`);
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, GW, GH);
+  ctx.strokeStyle = `rgba(212,175,55,${0.8 * k})`; ctx.lineWidth = 3; ctx.strokeRect(8, 8, GW - 16, GH - 16);
+  ctx.lineWidth = 1; ctx.strokeRect(13, 13, GW - 26, GH - 26);
+  if (t >= HIST_REVEAL) {
+    const kk = Math.min(1, (t - HIST_REVEAL) / 14);
+    if (hero.key === 'ship') { drawWaves(t, kk); drawGiantSword(P.x - s * 14, P.y + 10, t, kk, s); }
+    if (hero.key === 'arrow') drawBow(P.x + s * 10, P.y - 20, t, kk, s);
+    if (hero.key === 'hangul') {
+      ctx.font = 'bold 14px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center';
+      for (const j of c.jamo) {
+        const e = 1 - (1 - j.k) * (1 - j.k);
+        const x = j.x + (j.tx - j.x) * e, y = j.y + (j.ty - j.y) * e - Math.sin(e * Math.PI) * 60;
+        ctx.fillStyle = `rgba(255,216,77,${0.5 + 0.5 * j.k})`;
+        ctx.fillText(j.ch, x, y);
+      }
+    }
+  }
+  // 시전자 (세종대왕이면 눈빛이 번뜩)
+  const glow = ctx.createRadialGradient(P.x, P.y - 16, 3, P.x, P.y - 16, 50);
+  glow.addColorStop(0, `rgba(255,230,150,${t >= HIST_REVEAL && Math.floor(t / 2) % 2 ? 0.95 : 0.5})`); glow.addColorStop(1, 'rgba(255,200,80,0)');
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(P.x, P.y - 16, 50, 0, 7); ctx.fill();
+  drawPlayer(P);
+  if (t >= HIST_REVEAL) drawPlayer(T);
+  // 글자
+  ctx.save(); ctx.globalAlpha = Math.max(0, k);
+  const intro = '오늘 내게 오신 위인은...!';
+  text(intro.slice(0, Math.min(intro.length, Math.floor(t / 1.2) + 1)), GW / 2, 50, 16, '#f5e6c0');
+  if (t >= 8 && t < HIST_REVEAL) {
+    // 슬롯머신처럼 위인 이름이 빙글빙글
+    const sp = Math.max(1, Math.floor((t - 8) / 6));
+    const show = HEROES[Math.floor(t / sp) % HEROES.length];
+    text(show.who, GW / 2, 100, 28, '#bfa76a');
+  }
+  if (t >= HIST_REVEAL) {
+    const sc = Math.min(1, (t - HIST_REVEAL + 1) / 5);
+    text(hero.who, GW / 2, 92, 30 * Math.max(sc, 0.3), hero.color);
+    text(hero.title, GW / 2, 118, 15, '#ffffff');
+    if (t < HIST_REVEAL + 3) { ctx.fillStyle = `rgba(255,240,200,${0.7 - (t - HIST_REVEAL) * 0.22})`; ctx.fillRect(0, 0, GW, GH); }
+    // 대사 말풍선 (두 줄까지)
+    const n = Math.min(hero.line.length, Math.floor((t - HIST_REVEAL - 2) / 0.7));
+    if (n > 0) {
+      ctx.font = 'bold 10px "Malgun Gothic", sans-serif';
+      const str = hero.line.slice(0, n);
+      const half = hero.line.length > 28 ? hero.line.lastIndexOf(' ', 28) : -1;
+      const l1 = half > 0 ? str.slice(0, half) : str, l2 = half > 0 && n > half ? str.slice(half + 1) : '';
+      const w = Math.min(GW - 20, ctx.measureText(half > 0 ? hero.line.slice(0, half) : hero.line).width + 16);
+      const bx = Math.max(10, Math.min(GW - w - 10, P.x - w / 2)), by = 140;
+      ctx.fillStyle = 'rgba(245,235,210,.95)';
+      ctx.beginPath(); ctx.roundRect(bx, by, w, half > 0 ? 32 : 20, 5); ctx.fill();
+      ctx.fillStyle = '#3a2410'; ctx.textAlign = 'left';
+      ctx.fillText(l1, bx + 8, by + 14);
+      if (l2) ctx.fillText(l2, bx + 8, by + 27);
+    }
+  }
+  ctx.restore();
+  if (t >= HIST_FIRE) drawBall();
+}
+
+function drawGlyphs() {
+  if (!glyphs.length) return;
+  ctx.font = 'bold 13px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center';
+  for (const g of glyphs) {
+    g.t--;
+    ctx.fillStyle = `rgba(255,216,77,${Math.min(0.8, g.t / 60)})`;
+    ctx.fillText(g.ch, g.x, g.y);
+  }
+  while (glyphs.length && glyphs[0].t <= 0) glyphs.shift();
 }
 
 // ----- 미러볼 파티 -----
@@ -1005,6 +1191,8 @@ function sfx(type) {
       rumble: ['sine', 55, 28, 0.45, 2.4],
       beat: ['sine', 120, 50, 0.3, 0.12],
       pop: ['triangle', 600, 1200, 0.12, 0.12],
+      twang: ['triangle', 900, 200, 0.25, 0.35],
+      chime: ['sine', 880, 1320, 0.2, 0.5],
     }[type];
     if (!set) return;
     const [wave, f0, f1, vol, dur] = set;
@@ -1197,6 +1385,7 @@ function drawBeam() {
   if (cine.kind === 'dictator') { drawDictator(); return; }
   if (cine.kind === 'meteor') { drawMeteor(); return; }
   if (cine.kind === 'party') { drawPartyIntro(); return; }
+  if (cine.kind === 'history') { drawHistory(); return; }
   if (cine.intro < INTRO_FRAMES) { drawCutIn(); return; }
   const t = cine.t, tx = cine.target.x;
   // 화면 어둡게
@@ -1291,7 +1480,9 @@ function update() {
     fade = Math.max(0, fade - 1 / 17);
     if (++timer >= 71) { fade = 0; state = 'play'; }
   } else if (state === 'play') {
-    if (cine && cine.kind === 'party') {
+    if (cine && cine.kind === 'history') {
+      updateHistory();
+    } else if (cine && cine.kind === 'party') {
       cine.t++; players.forEach((p) => p.anim++);
       if (cine.t % 6 === 0) sfx('beat');
       if (cine.t >= PARTY_INTRO) cine = null;
@@ -1515,6 +1706,22 @@ function drawBallAt(x, y, alpha) {
 
 function drawBall() {
   shadow(ball.x, 16);
+  if (ball.hero === 'arrow') {
+    // 거대한 화살촉 모양 붉은 오라
+    const ang = Math.atan2(ball.vy, ball.vx);
+    ctx.save(); ctx.translate(ball.x, ball.y); ctx.rotate(ang);
+    ctx.shadowColor = '#ff3a00'; ctx.shadowBlur = 16;
+    ctx.fillStyle = 'rgba(255,70,30,.75)';
+    ctx.beginPath(); ctx.moveTo(48, 0); ctx.lineTo(4, -30); ctx.lineTo(12, 0); ctx.lineTo(4, 30); ctx.fill();
+    ctx.fillStyle = 'rgba(255,140,60,.45)'; ctx.fillRect(-120, -4, 124, 8);
+    ctx.restore();
+  }
+  if (ball.hero === 'ship' && ball.trail.length) {
+    ball.trail.forEach((tr, i) => {
+      ctx.fillStyle = `rgba(150,210,255,${0.25 + i * 0.2})`;
+      ctx.beginPath(); ctx.arc(tr.x, tr.y, BALL_R * (0.8 + i * 0.2), 0, 7); ctx.fill();
+    });
+  }
   if (ball.meteor) {
     // 붉은 혜성 꼬리
     ball.trail.forEach((t, i) => {
@@ -1578,7 +1785,7 @@ function drawPopups() {
 function drawSelect() {
   ctx.fillStyle = 'rgba(10,20,40,.55)'; ctx.fillRect(0, 0, GW, GH);
   text('캐릭터 선택', GW / 2, 30, 22, '#fff3a0');
-  const n = CHARACTERS.length, cw = 54, gap = 10;
+  const n = CHARACTERS.length, gap = 6, cw = Math.min(54, (GW - 16 - gap * (n - 1)) / n); // 캐릭터 많으면 카드 작게
   const x0 = GW / 2 - (n * cw + (n - 1) * gap) / 2;
   CHARACTERS.forEach((c, i) => {
     const x = x0 + i * (cw + gap), y = 42;
@@ -1635,7 +1842,12 @@ function drawSelect() {
     text(c.name, tx, 148, 15, p.color, 'left');
     text(c.grade, tx, 132, 9, GRADE_COLOR[c.grade], 'left');
     text('특수: ' + c.skillName, tx, 170, 11, '#fff3a0', 'left');
-    c.desc.forEach((d, i) => text(d, tx, 188 + i * 15, 9, '#fff', 'left'));
+    c.desc.forEach((d, i) => {
+      // 칸을 넘으면 글자를 작게
+      let fs = 9; ctx.font = `bold ${fs}px "Malgun Gothic", sans-serif`;
+      while (ctx.measureText(d).width > cx + 92 - tx && fs > 6) { fs -= 0.5; ctx.font = `bold ${fs}px "Malgun Gothic", sans-serif`; }
+      text(d, tx, 188 + i * 15, fs, '#fff', 'left');
+    });
     const keys = p.side === 0 ? 'D/G 고르기 · Z 선택' : '←/→ 고르기 · Enter 선택';
     text(p.picked ? '준비 완료!' : keys, cx, 284, 10, p.picked ? '#7dff9a' : '#ddd');
   });
@@ -1646,6 +1858,7 @@ function draw() {
   if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   drawBackground();
   drawCraters();
+  drawGlyphs();
   drawNet();
   if (state !== 'select') players.forEach(drawPlayer);
   if (state !== 'select' && state !== 'title') drawPartyField();
