@@ -16,8 +16,8 @@ const CONFIG = {
 const CHARACTERS = [
   { name: '무표정맨', grade: 'COMMON', type: 'face', img: 'assets/face1.png', skill: null,
     skillName: '???', desc: ['특수능력 준비 중'] },
-  { name: '스마일맨', grade: 'COMMON', type: 'face', img: 'assets/face2.png', skill: null,
-    skillName: '???', desc: ['특수능력 준비 중'] },
+  { name: '스마일맨', grade: 'COMMON', type: 'face', img: 'assets/face2.png', skill: 'meteor',
+    skillName: '메테오 서브', desc: ['공을 하늘로 띄워 운석처럼 강타!', '막을 순 있지만 엄청 셈'] },
   { name: '키다리', grade: 'EPIC', type: 'sprite', img: 'assets/tall.png', w: 30, h: 70, skill: 'giant',
     skillName: '거인화', desc: ['5초 동안 키가 3배!', '높은 공도 다 막는다'] },
   { name: '허우적맨', grade: 'RARE', type: 'sprite', img: 'assets/swim.png', w: 40, h: 68, skill: 'whirl',
@@ -32,15 +32,37 @@ const CHARACTERS = [
 const GRADE_COLOR = { COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f' };
 
 // 스킬 시간 (25프레임 = 1초)
-const SKILL_FRAMES = { giant: 125, whirl: 75, hairbeam: 125, democracy: 8 };
+const SKILL_FRAMES = { giant: 125, whirl: 75, hairbeam: 125, democracy: 8, meteor: 8 };
 const DEMO_FRAMES = 80;    // 민주주의 영역전개 연출 길이 (3.2초, 모든 게 슬로우)
 const DEMO_HIT = 74;       // 지팡이가 공을 치는 순간
+const DICTATOR_CHANCE = 0.15; // 민주주의를 '독재'로 막을 확률 (15%)
+let dictTest = false;        // 테스트: 타이틀에서 0 누르면 독재 100%
+const DICT_SLOW = 0.05;
+// 메테오 서브
+const METEOR_TOSS = 18, METEOR_HIT = 30, METEOR_END = 46;
+const METEOR_LINES = [
+  '뭘 봐 ㅆ바라, 뚝배기 깨지기 싫으면 피해라.',
+  '뭘 봐 ㅆ바라, 하늘에서 떨어지는 건 못 받아.',
+  '뭘 봐 ㅆ바라, 받아봐야 아웃이야.',
+  '뭘 봐 ㅆ바라, 멸망이다.',
+];
+const craters = [];   // 운석 구덩이 (라운드 끝나면 사라짐)
+const smokes = [];    // 연기
+let shake = 0;        // 화면 흔들림      // 독재 슈퍼 슬로우 (공이 원래 속도의 5%로 움직임)
+const DICT_RECV = 30;        // 리시브하는 순간
+const DICT_END = 44;         // 독재 연출 끝
 const SHRINK = 0.4;        // 탈모빔 맞은 상대 크기
 const BEAM_FRAMES = 45;    // 탈모빔 연출 길이 (슈퍼 슬로모션)
 const BEAM_HIT = 14;       // 빔이 땅에 닿는 순간
 const INTRO_FRAMES = 50;   // 빔 쏘기 전 컷인 애니메이션 (2초, 경기 멈춤)
 // 스킬 중 크기 배율 [가로, 세로] (히트박스도 같이 커짐)
 const SKILL_SIZE = { giant: [1, 3], whirl: [2, 2] };
+
+// ===== 게임 속도 (원작과 같은 3단계) =====
+const SPEEDS = [{ name: '느림', fps: 20 }, { name: '보통', fps: 25 }, { name: '빠름', fps: 30 }];
+let speedIdx = 1;
+try { const v = localStorage.getItem('volley_speed'); if (v !== null && SPEEDS[Number(v)]) speedIdx = Number(v); } catch (e) {}
+CONFIG.FPS = SPEEDS[speedIdx].fps;
 
 // ===== 기본 값 (원작과 같은 432 x 304 크기로 계산, 화면엔 2배로 그림) =====
 const cv = document.getElementById('c');
@@ -96,7 +118,8 @@ function makePlayer(side) {
     x: 0, y: P_GROUND_Y, vy: 0, state: NORMAL,
     powerT: 0, diveDir: 0, lyingT: 0, collided: false, score: 0, anim: 0,
     char: side, picked: false,          // 고른 캐릭터
-    mana: 0, skillT: 0, skillMax: 1, hm: 1, hw: 1, shrinkT: 0,          // 마나, 스킬 남은 시간, 키 배율
+    mana: 0, skillT: 0, skillMax: 1, hm: 1, hw: 1, shrinkT: 0,
+    frozen: false, forceBump: false, redT: 0, // 독재: 멈춰서 받기만          // 마나, 스킬 남은 시간, 키 배율
     color: SIDE_COLOR[side],
   };
 }
@@ -110,8 +133,9 @@ let cine = null; // 탈모빔 연출 { t, caster, target } // fade: 0 = 밝음, 
 function readInput(p) {
   const k = p.keys;
   return {
-    x: (down.has(k.r) ? 1 : 0) - (down.has(k.l) ? 1 : 0),
-    y: (down.has(k.d) ? 1 : 0) - (down.has(k.u) ? 1 : 0), // 위 -1, 아래 +1
+    // 원작처럼 둘 다 누르면 왼쪽·위가 우선
+    x: down.has(k.l) ? -1 : down.has(k.r) ? 1 : 0,
+    y: down.has(k.u) ? -1 : down.has(k.d) ? 1 : 0, // 위 -1, 아래 +1
     power: pressed.has(k.a),
     skill: pressed.has(k.s),
   };
@@ -122,13 +146,14 @@ function resetRound(server) {
   for (const p of players) {
     Object.assign(p, { y: P_GROUND_Y, vy: 0, state: NORMAL, powerT: 0, lyingT: 0, collided: false });
     // 탈모빔은 라운드 끝나면 사라짐 (시간 상관없이)
-    p.shrinkT = 0;
+    p.shrinkT = 0; p.frozen = false; p.forceBump = false; p.redT = 0;
     if (CHARACTERS[p.char].skill === 'hairbeam') p.skillT = 0;
     if (CHARACTERS[p.char].skill === 'democracy') p.skillT = 0; // 민주주의도 라운드 끝나면 해제
   }
   cine = null; // 남아 있는 연출(영역전개·빔)도 정리
   Object.assign(ball, { x: server === 0 ? LEFT_SERVE_X : RIGHT_SERVE_X, y: 0, vx: 0, vy: 1, power: false, unblockable: false, trail: [] });
   effects.length = 0;
+  craters.length = 0; smokes.length = 0; shake = 0; ball.meteor = false;
   state = 'ready';
   timer = 0; // "Ready?" 30프레임(1.2초) 깜빡이며 화면 밝아짐
 }
@@ -152,16 +177,22 @@ function updatePlayer(p, inp) {
   p.anim++;
   // 스킬 (거인화)
   const ch = CHARACTERS[p.char];
-  if (inp.skill && ch.skill && p.mana >= CONFIG.MANA_MAX && p.skillT === 0 && p.state !== WIN && p.state !== LOSE) {
+  if (inp.skill && ch.skill && !cine && p.mana >= CONFIG.MANA_MAX && p.skillT === 0 && p.state !== WIN && p.state !== LOSE) {
     p.mana = 0;
     p.skillT = p.skillMax = SKILL_FRAMES[ch.skill];
     if (ch.skill === 'hairbeam') cine = { kind: 'hairbeam', intro: 0, t: 0, caster: p, target: players[1 - p.side] };
     if (ch.skill === 'democracy') {
       const candles = [];
       for (let i = 0; i < 70; i++) candles.push({ x: Math.random() * GW, y: 20 + Math.random() * 270, d: Math.random() * 14, s: 0.6 + Math.random() * 0.8, f: Math.random() * 6 });
-      cine = { kind: 'democracy', t: 0, caster: p, target: players[1 - p.side], candles };
+      cine = { kind: 'democracy', t: 0, caster: p, target: players[1 - p.side], candles, counter: Math.random() < (dictTest ? 1 : DICTATOR_CHANCE) };
     }
-    popups.push({ text: ch.skillName + '!', x: p.x, y: 120, t: 30, color: p.color });
+    if (ch.skill === 'meteor') {
+      const lines = METEOR_LINES;
+      cine = { kind: 'meteor', t: 0, caster: p, target: players[1 - p.side], from: { x: ball.x, y: ball.y },
+        line: lines[Math.floor(Math.random() * lines.length)], casterY: p.y };
+      ball.unblockable = false; ball.power = false;
+      sfx('whoosh');
+    } else popups.push({ text: ch.skillName + '!', x: p.x, y: 120, t: 30, color: p.color });
   }
   if (p.skillT > 0) p.skillT--;
   let [tw, th] = p.skillT > 0 && SKILL_SIZE[ch.skill] ? SKILL_SIZE[ch.skill] : [1, 1];
@@ -170,6 +201,8 @@ function updatePlayer(p, inp) {
   if (Math.abs(th - p.hm) < 0.01) p.hm = th;
   p.hw += (tw - p.hw) * 0.35;
   if (Math.abs(tw - p.hw) < 0.01) p.hw = tw;
+  if (p.redT > 0) p.redT--;
+  if (p.frozen) return; // 독재: 공을 받을 때까지 그 자리에 멈춤
 
   if (p.state === WIN || p.state === LOSE) return;
   if (p.state === LYING) { if (--p.lyingT <= 0) p.state = NORMAL; return; }
@@ -180,18 +213,16 @@ function updatePlayer(p, inp) {
   const [mn, mx] = p.side === 0 ? [32, 184] : [248, 400];
   p.x = Math.max(mn, Math.min(mx, p.x));
 
-  // 점프 (땅에서만)
-  if (p.state === NORMAL && inp.y === -1) { p.state = JUMP; p.vy = -16; }
+  // 점프 (원작: y가 정확히 땅(244)이고 다이빙·누움 상태가 아닐 때)
+  if (p.state < DIVE && inp.y === -1 && p.y === P_GROUND_Y) { p.state = JUMP; p.vy = -16; }
 
-  // 중력
-  if (p.y < P_GROUND_Y || p.vy < 0) {
-    p.y += p.vy;
-    p.vy += 1;
-    if (p.y >= P_GROUND_Y) {
-      p.y = P_GROUND_Y; p.vy = 0;
-      if (p.state === DIVE) { p.state = LYING; p.lyingT = 5; }
-      else p.state = NORMAL;
-    }
+  // 중력 (원작 순서: 위치 먼저 → 공중이면 속도 +1 → 땅보다 아래로 가면 착지)
+  p.y += p.vy;
+  if (p.y < P_GROUND_Y) p.vy += 1;
+  else if (p.y > P_GROUND_Y) {
+    p.y = P_GROUND_Y; p.vy = 0;
+    if (p.state === DIVE) { p.state = LYING; p.lyingT = 5; }
+    else p.state = NORMAL;
   }
 
   // 공격 키
@@ -217,11 +248,13 @@ function updateBall() {
     ball.vy = -ball.vy;
     ball.power = false;
     ball.unblockable = false;
+    players.forEach((pl) => { pl.frozen = false; pl.forceBump = false; });
     effects.push({ x: ball.x, y: BALL_GROUND_Y + 20, t: 8 });
+    if (ball.meteor) meteorImpact(ball.x);
     return true;
   }
   ball.trail.push({ x: ball.x, y: ball.y });
-  if (ball.trail.length > 2) ball.trail.shift();
+  if (ball.trail.length > (ball.meteor ? 12 : 2)) ball.trail.shift();
   ball.x += ball.vx;
   ball.y += ball.vy;
   ball.vy += 1;
@@ -230,8 +263,12 @@ function updateBall() {
 
 // ----- 선수가 공에 맞았을 때 -----
 function hitBall(p, inp) {
+  if (ball.meteor) { ball.meteor = false; shake = Math.max(shake, 4); sfx('thud'); } // 메테오를 받아냄!
+  // 독재로 막는 중이면 그냥 받기만 (스파이크·스킬 없음)
+  const bumpOnly = p.forceBump;
+  if (bumpOnly) { p.forceBump = false; p.frozen = false; p.redT = 20; effects.push({ x: ball.x, y: ball.y, t: 8 }); }
   // 회전 회오리 중: 닿는 공을 상대 쪽으로 세게 날림
-  if (p.skillT > 0 && CHARACTERS[p.char].skill === 'whirl') {
+  if (!bumpOnly && p.skillT > 0 && CHARACTERS[p.char].skill === 'whirl') {
     ball.vx = (ball.x < NET_X ? 1 : -1) * 37; // 22 x 1.7
     ball.vy = -24;                             // -14 x 1.7
     ball.power = true;
@@ -247,7 +284,7 @@ function hitBall(p, inp) {
   if (ball.vy > -15) ball.vy = -15;
   ball.power = false;
 
-  if (p.state === POWER) {
+  if (!bumpOnly && p.state === POWER) {
     const toward = ball.x < NET_X ? 1 : -1;
     ball.vx = toward * (inp.x !== 0 ? 20 : 10);
     ball.vy = Math.abs(ball.vy) * inp.y * 2;
@@ -305,10 +342,10 @@ function democracyHit(c) {
   // 지팡이 끝에서 공을 쳐서 상대 코트로 꽂아 넣음
   ball.x = pv.x + s * Math.sin(STAFF_END) * STAFF_LEN;
   ball.y = pv.y - Math.cos(STAFF_END) * STAFF_LEN;
+  ball.power = true;
   const tx = s > 0 ? 290 + Math.random() * 100 : 42 + Math.random() * 100;
   ball.vx = (tx - ball.x) / 5;
   ball.vy = (BALL_GROUND_Y - ball.y) / 5 - 2;
-  ball.power = true;
   ball.unblockable = true;
   ball.trail = [];
   effects.push({ x: ball.x, y: ball.y, t: 8 });
@@ -464,6 +501,253 @@ function drawDomain() {
   if (t >= DEMO_HIT) drawBall();
 }
 
+// ----- 메테오 서브 (궤도 파괴) -----
+function updateMeteor() {
+  const c = cine, P = c.caster, s = P.side === 0 ? 1 : -1;
+  c.t++;
+  players.forEach((p) => p.anim++);
+  const top = { x: P.x + s * 6, y: 30 };
+  const hit = { x: P.x + s * 16, y: 104 };
+  if (c.t <= METEOR_TOSS) {
+    // 1. 토스: 공이 캐릭터 머리 위 하늘 높이 올라감 (경기 멈춤)
+    const k = c.t / METEOR_TOSS, e = 1 - (1 - k) * (1 - k);
+    ball.x = c.from.x + (top.x - c.from.x) * e;
+    ball.y = c.from.y + (top.y - c.from.y) * e;
+    ball.vx = 0; ball.vy = 0;
+    ball.rot += 0.3;
+  } else if (c.t < METEOR_HIT) {
+    // 2. 점프: 캐릭터가 떠오르고 공은 타점으로 내려옴
+    const k = (c.t - METEOR_TOSS) / (METEOR_HIT - METEOR_TOSS);
+    ball.x = top.x + (hit.x - top.x) * k;
+    ball.y = top.y + (hit.y - top.y) * k * k;
+    P.y = c.casterY + (hit.y + 34 - c.casterY) * (1 - (1 - k) * (1 - k));
+    P.state = POWER; P.powerT = 99; P.vy = 0;
+    ball.rot += 0.5;
+  } else if (c.t === METEOR_HIT) {
+    // 3. 쿵! 상대 코트로 운석처럼 내리꽂음 (막을 수는 있음)
+    const tx = s > 0 ? 270 + Math.random() * 120 : 42 + Math.random() * 120;
+    ball.x = hit.x; ball.y = hit.y;
+    ball.vx = Math.round((tx - ball.x) / 8);
+    ball.vy = Math.round((BALL_GROUND_Y - ball.y) / 8 - 3.5);
+    ball.power = true; ball.meteor = true; ball.trail = [];
+    P.state = JUMP; P.powerT = 0; P.vy = 0; P.collided = true;
+    shake = 7;
+    effects.push({ x: ball.x, y: ball.y, t: 8 }, { x: ball.x, y: ball.y, t: 6 });
+    sfx('boom');
+  } else {
+    // 4. 날아가는 중엔 원래 속도
+    step(true);
+    if (!cine) return;
+  }
+  if (c.t >= METEOR_END) cine = null;
+}
+
+function meteorImpact(x) {
+  ball.meteor = false;
+  craters.push({ x, seed: Math.random() * 1000 });
+  shake = 12;
+  for (let i = 0; i < 18; i++) {
+    smokes.push({ x: x + (Math.random() - 0.5) * 30, y: 268 - Math.random() * 10,
+      vx: (Math.random() - 0.5) * 2.4, vy: -0.4 - Math.random() * 1.2, r: 6 + Math.random() * 8, t: 40 + Math.random() * 30 });
+  }
+  sfx('explode');
+}
+
+function drawCraters() {
+  for (const cr of craters) {
+    ctx.fillStyle = 'rgba(60,35,20,.75)';
+    ctx.beginPath(); ctx.ellipse(cr.x, 274, 30, 6, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(30,15,8,.8)';
+    ctx.beginPath(); ctx.ellipse(cr.x, 275, 18, 3.5, 0, 0, 7); ctx.fill();
+    // 금 간 자국
+    ctx.strokeStyle = 'rgba(40,20,10,.8)'; ctx.lineWidth = 1.2;
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 + cr.seed;
+      let x = cr.x, y = 274;
+      ctx.beginPath(); ctx.moveTo(x, y);
+      for (let j = 0; j < 3; j++) { x += Math.cos(a + Math.sin(cr.seed + i * j)) * 9; y += Math.sin(a) * 2.2; ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
+  }
+}
+
+function drawSmokes() {
+  for (const sm of smokes) {
+    ctx.fillStyle = `rgba(90,85,80,${Math.min(0.55, sm.t / 60)})`;
+    ctx.beginPath(); ctx.arc(sm.x, sm.y, sm.r, 0, 7); ctx.fill();
+  }
+}
+
+function drawMeteor() {
+  const c = cine, t = c.t, P = c.caster;
+  const k = t > METEOR_END - 10 ? (METEOR_END - t) / 10 : Math.min(1, t / 6);
+  // 코트 조명이 어두워짐
+  ctx.fillStyle = `rgba(20,0,0,${0.55 * k})`;
+  ctx.fillRect(0, 0, GW, GH);
+  // 화염 오라가 공에 압축됨
+  if (t < METEOR_HIT) {
+    for (let i = 0; i < 14; i++) {
+      const a = i * 0.45 + t * 0.35, r = 50 - ((t * 3 + i * 7) % 50);
+      ctx.fillStyle = i % 2 ? 'rgba(255,120,30,.9)' : 'rgba(255,220,120,.9)';
+      ctx.beginPath(); ctx.arc(ball.x + Math.cos(a) * r, ball.y + Math.sin(a) * r, 2, 0, 7); ctx.fill();
+    }
+    const gr = 14 + t * 0.9;
+    const g = ctx.createRadialGradient(ball.x, ball.y, 4, ball.x, ball.y, gr);
+    g.addColorStop(0, 'rgba(255,230,150,.9)'); g.addColorStop(0.5, 'rgba(255,70,20,.6)'); g.addColorStop(1, 'rgba(150,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ball.x, ball.y, gr, 0, 7); ctx.fill();
+  }
+  drawPlayer(P);
+  drawBall();
+  if (t >= METEOR_HIT && t < METEOR_HIT + 3) { ctx.fillStyle = `rgba(255,200,120,${0.6 - (t - METEOR_HIT) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
+  // 글자
+  ctx.save(); ctx.globalAlpha = Math.max(0, k);
+  const sc = Math.min(1, t / 5);
+  text('[천공파쇄 (天空破碎)]', GW / 2, 40, 13, '#ffb38a');
+  text('궤도 파괴: 메테오 서브', GW / 2, 66, 26 * sc, '#ff5a1f');
+  text('Orbital Destroyer: Meteor Serve', GW / 2, 82, 9, '#ffd2b0');
+  // 대사 말풍선
+  if (t >= 4) {
+    const n = Math.min(c.line.length, Math.floor((t - 4) / 0.8));
+    const str = c.line.slice(0, n);
+    ctx.font = 'bold 11px "Malgun Gothic", sans-serif';
+    const w = ctx.measureText(c.line).width + 14;
+    const bx = Math.max(6, Math.min(GW - w - 6, P.x - w / 2)), by = 104;
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    ctx.beginPath(); ctx.roundRect(bx, by, w, 20, 6); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(P.x - 5, by + 20); ctx.lineTo(P.x + 5, by + 20); ctx.lineTo(P.x, by + 27); ctx.fill();
+    ctx.fillStyle = '#222'; ctx.textAlign = 'left';
+    ctx.fillText(str, bx + 7, by + 14);
+  }
+  ctx.restore();
+}
+
+// ----- 효과음 (간단한 소리, 파일 없이 만듦) -----
+let audioCtx = null;
+function sfx(type) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const a = audioCtx, now = a.currentTime;
+    const o = a.createOscillator(), g = a.createGain();
+    o.connect(g); g.connect(a.destination);
+    const set = {
+      boom: ['sine', 90, 35, 0.6, 0.5],     // 쿵-
+      explode: ['sawtooth', 70, 20, 0.5, 0.8],
+      thud: ['square', 160, 60, 0.25, 0.2],
+      whoosh: ['triangle', 300, 900, 0.12, 0.5],
+    }[type];
+    if (!set) return;
+    const [wave, f0, f1, vol, dur] = set;
+    o.type = wave;
+    o.frequency.setValueAtTime(f0, now);
+    o.frequency.exponentialRampToValueAtTime(f1, now + dur);
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    o.start(now); o.stop(now + dur);
+  } catch (e) {}
+}
+
+// ----- 독재 (민주주의 카운터, 20%) -----
+// 1~2프레임: 원래 속도 (슬로우 풀린 느낌) → 독재 발동, 슈퍼 슬로우
+// → 상대가 공 밑으로 슉 대시 → 리시브 → 원래대로
+function updateDictator() {
+  const c = cine;
+  c.t++;
+  players.forEach((p) => p.anim++);
+  if (c.t <= 2) {
+    step(true);                       // 공이 원래 속도로 떨어지는 중
+    if (!cine) return;                // 그 사이에 바닥에 닿았으면 끝
+    if (c.t === 2) startDictator(c);
+    return;
+  }
+  const T = c.target;
+  // 공은 슈퍼 슬로우로 움직임
+  if (c.t <= DICT_RECV || c.t > DICT_RECV) {
+    ball.x += ball.vx * DICT_SLOW;
+    ball.y += ball.vy * DICT_SLOW;
+    ball.vy += DICT_SLOW;
+    ball.rot += ball.vx * 0.06 * DICT_SLOW;
+  }
+  // 슉! 공 밑으로 대시 (6~14프레임)
+  if (c.t >= 6 && c.t <= 14) {
+    const k = (c.t - 6) / 8, e = 1 - (1 - k) * (1 - k);
+    c.trail.push({ x: T.x, y: T.y });
+    if (c.trail.length > 6) c.trail.shift();
+    T.x = c.from.x + (c.dest.x - c.from.x) * e;
+    T.y = c.from.y + (c.dest.y - c.from.y) * e;
+  } else if (c.trail.length && c.t % 2 === 0) c.trail.shift();
+  // 리시브!
+  if (c.t === DICT_RECV) {
+    T.x = c.dest.x; T.y = c.dest.y;
+    // 길게 받기: 네트 넘어 상대 코트 가운데쯤으로 높이 넘김 (약 40프레임 비행)
+    const enemyCenter = (T.side === 0 ? 324 : 108) + (Math.random() - 0.5) * 80;
+    ball.vy = -19;
+    ball.vx = Math.round((enemyCenter - ball.x) / 40);
+    if (Math.abs(ball.vx) < 3) ball.vx = T.side === 0 ? 3 : -3;
+    ball.power = false;
+    ball.unblockable = false;
+    T.collided = true;                // 바로 또 맞지 않게
+    T.state = T.y < P_GROUND_Y ? JUMP : NORMAL;
+    T.vy = 0;
+    T.redT = 25;
+    effects.push({ x: ball.x, y: ball.y, t: 8 }, { x: ball.x, y: ball.y, t: 6 });
+    popups.push({ text: '리시브!!', x: T.x, y: 150, t: 30, color: '#ff6b6b' });
+  }
+  if (c.t >= DICT_END) { ball.vy = Math.round(ball.vy); cine = null; } // 원작처럼 정수 속도로
+}
+
+function startDictator(c) {
+  const T = c.target;
+  ball.unblockable = false;
+  T.redT = 999;
+  T.state = NORMAL; T.vy = 0; T.lyingT = 0;
+  // 슈퍼 슬로우로 움직였을 때 리시브 순간 공 위치 미리 계산
+  let bx = ball.x, by = ball.y, vx = ball.vx, vy = ball.vy;
+  for (let i = 3; i <= DICT_RECV; i++) { bx += vx * DICT_SLOW; by += vy * DICT_SLOW; vy += DICT_SLOW; }
+  const [mn, mx] = T.side === 0 ? [32, 184] : [248, 400];
+  c.from = { x: T.x, y: T.y };
+  c.dest = { x: Math.max(mn, Math.min(mx, bx)), y: Math.min(P_GROUND_Y, by + 40) };
+}
+
+function drawDictator() {
+  const c = cine, t = c.t, T = c.target;
+  if (t < 2) return;
+  const k = t > DICT_END - 6 ? (DICT_END - t) / 6 : Math.min(1, (t - 1) / 3);
+  // 빨간 화면
+  ctx.fillStyle = `rgba(90,0,0,${0.45 * k})`;
+  ctx.fillRect(0, 0, GW, GH);
+  if (t < 5) { ctx.fillStyle = `rgba(255,30,30,${0.6 - (t - 2) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
+  // 잔상
+  c.trail.forEach((tr, i) => {
+    ctx.save();
+    ctx.globalAlpha = 0.15 + i * 0.08;
+    const ghost = { ...T, x: tr.x, y: tr.y, redT: 1, skillT: 0 };
+    drawPlayer(ghost);
+    ctx.restore();
+  });
+  // 대시 선
+  if (t >= 6 && t <= 16) {
+    ctx.strokeStyle = 'rgba(255,200,200,.8)'; ctx.lineWidth = 2;
+    for (let i = 0; i < 5; i++) {
+      const y = T.y - 30 + i * 14;
+      ctx.beginPath(); ctx.moveTo(c.from.x, y); ctx.lineTo(T.x, y); ctx.stroke();
+    }
+  }
+  drawPlayer(T);
+  drawBall();
+  // 리시브 순간 하얀 번쩍
+  if (t >= DICT_RECV && t < DICT_RECV + 3) { ctx.fillStyle = `rgba(255,255,255,${0.7 - (t - DICT_RECV) * 0.22})`; ctx.fillRect(0, 0, GW, GH); }
+  // 글자
+  ctx.save(); ctx.globalAlpha = Math.max(0, k);
+  const sx = (Math.random() - 0.5) * 3;
+  text('독재', GW / 2 + sx, 70, 46 * Math.min(1, (t - 1) / 4), '#ff3b3b');
+  text('— DICTATORSHIP —', GW / 2, 92, 11, '#ffb3b3');
+  // 대사: 한 글자씩
+  const line = '"민주주의에 대항한다."';
+  const n = Math.max(0, Math.min(line.length, Math.floor((t - 4) / 1.2)));
+  if (n > 0) text(line.slice(0, n), GW / 2, 114, 14, '#ffffff');
+  ctx.restore();
+}
+
 // ----- 탈모빔 컷인 (빔 쏘기 전 2초) -----
 function drawCutIn() {
   const t = cine.intro, c = cine.caster;
@@ -539,6 +823,8 @@ function drawCutIn() {
 function drawBeam() {
   if (!cine) return;
   if (cine.kind === 'democracy') { drawDomain(); return; }
+  if (cine.kind === 'dictator') { drawDictator(); return; }
+  if (cine.kind === 'meteor') { drawMeteor(); return; }
   if (cine.intro < INTRO_FRAMES) { drawCutIn(); return; }
   const t = cine.t, tx = cine.target.x;
   // 화면 어둡게
@@ -601,9 +887,25 @@ function updateSelect() {
 const powerPressed = () => pressed.has('KeyZ') || pressed.has('Enter');
 
 function update() {
-  if (restartReq) { restartReq = false; fade = 0; newGame(); pressed.clear(); return; }
+  if (restartReq) {
+    // 백스페이스 3번 → 맨 처음 타이틀 화면으로
+    restartReq = false; fade = 0; cine = null;
+    newGame();
+    players[0].x = 36; players[1].x = 396;
+    players.forEach((p) => { p.state = NORMAL; p.picked = false; });
+    state = 'title'; timer = 0;
+    pressed.clear(); return;
+  }
   if (state === 'title') {
     players.forEach((p) => p.anim++);
+    if (pressed.has('Digit0') || pressed.has('Numpad0')) dictTest = !dictTest; // 테스트 모드
+    // 속도 바꾸기 (원작: 느림 20 / 보통 25 / 빠름 30)
+    const up = pressed.has('KeyR') || pressed.has('ArrowUp'), dn = pressed.has('KeyF') || pressed.has('ArrowDown');
+    if (up || dn) {
+      speedIdx = (speedIdx + (dn ? 1 : SPEEDS.length - 1)) % SPEEDS.length;
+      CONFIG.FPS = SPEEDS[speedIdx].fps;
+      try { localStorage.setItem('volley_speed', String(speedIdx)); } catch (e) {}
+    }
     if (powerPressed()) {
       players.forEach((p) => { p.picked = false; p.state = NORMAL; p.hm = 1; p.hw = 1; p.skillT = 0; p.shrinkT = 0; });
       state = 'select'; timer = 0;
@@ -617,13 +919,20 @@ function update() {
     fade = Math.max(0, fade - 1 / 17);
     if (++timer >= 71) { fade = 0; state = 'play'; }
   } else if (state === 'play') {
-    if (cine && cine.kind === 'democracy') {
+    if (cine && cine.kind === 'meteor') {
+      updateMeteor();
+    } else if (cine && cine.kind === 'dictator') {
+      updateDictator();
+    } else if (cine && cine.kind === 'democracy') {
       // 영역전개: 모든 게 슬로우 (10프레임에 1번만 움직임)
       cine.t++;
       players.forEach((p) => p.anim++);
       if (cine.t === DEMO_HIT) democracyHit(cine.caster);
       if (cine.t % 10 === 0) step(true);
-      if (cine && cine.t >= DEMO_FRAMES) cine = null;
+      if (cine && cine.t >= DEMO_FRAMES) {
+        // 슬로우 풀림 → 20% 확률로 독재 발동 준비
+        cine = cine.counter ? { kind: 'dictator', t: 0, caster: cine.caster, target: cine.target, trail: [] } : null;
+      }
     } else if (cine && cine.intro < INTRO_FRAMES) {
       cine.intro++; // 컷인 애니메이션 중엔 경기 완전히 멈춤
       players.forEach((p) => p.anim++);
@@ -656,6 +965,9 @@ function update() {
   }
   for (const e of effects) e.t--;
   while (effects.length && effects[0].t <= 0) effects.shift();
+  if (shake > 0) shake = Math.max(0, shake - 0.8);
+  for (const sm of smokes) { sm.t--; sm.x += sm.vx; sm.y += sm.vy; sm.r += 0.6; }
+  while (smokes.length && smokes[0].t <= 0) smokes.shift();
   for (const e of popups) e.t--;
   while (popups.length && popups[0].t <= 0) popups.shift();
   pressed.clear();
@@ -773,6 +1085,14 @@ function drawPlayer(p) {
     ctx.scale(Math.cos(p.anim * 2.1) || 0.05, 1); // 회전 속도 1.5배
   }
   ctx.scale(face, 1);
+  if (p.redT > 0) {
+    // 독재: 빨갛게 번쩍
+    const on = Math.floor(p.anim / 2) % 2 === 0;
+    const rg = ctx.createRadialGradient(0, 0, 4, 0, 0, 64);
+    rg.addColorStop(0, on ? 'rgba(255,60,40,.95)' : 'rgba(255,0,0,.55)');
+    rg.addColorStop(1, 'rgba(255,0,0,0)');
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(0, 0, 64, 0, 7); ctx.fill();
+  }
   const glow = p.skillT > 0 && CHARACTERS[p.char].skill === 'hairbeam';
   if (glow) {
     // 번쩍번쩍 빛나기
@@ -819,6 +1139,20 @@ function drawBallAt(x, y, alpha) {
 
 function drawBall() {
   shadow(ball.x, 16);
+  if (ball.meteor) {
+    // 붉은 혜성 꼬리
+    ball.trail.forEach((t, i) => {
+      const k = (i + 1) / ball.trail.length;
+      const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, BALL_R * (0.6 + k));
+      g.addColorStop(0, `rgba(255,240,180,${0.6 * k})`);
+      g.addColorStop(0.4, `rgba(255,90,20,${0.55 * k})`);
+      g.addColorStop(1, 'rgba(160,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(t.x, t.y, BALL_R * (0.6 + k), 0, 7); ctx.fill();
+    });
+    const g = ctx.createRadialGradient(ball.x, ball.y, 10, ball.x, ball.y, 36);
+    g.addColorStop(0, 'rgba(255,120,30,.8)'); g.addColorStop(1, 'rgba(255,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ball.x, ball.y, 36, 0, 7); ctx.fill();
+  }
   if (ball.power) ball.trail.forEach((t, i) => drawBallAt(t.x, t.y, 0.25 + i * 0.2));
   drawBallAt(ball.x, ball.y, 1);
 }
@@ -933,12 +1267,15 @@ function drawSelect() {
 
 function draw() {
   ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+  if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   drawBackground();
+  drawCraters();
   drawNet();
   if (state !== 'select') players.forEach(drawPlayer);
   if (state !== 'title' && state !== 'startFadeOut' && state !== 'select') drawBall();
   drawBeam();
   drawEffects();
+  drawSmokes();
 
   if (state === 'select') { drawSelect(); drawPopups(); return; }
 
@@ -953,8 +1290,10 @@ function draw() {
     text('오른쪽: ← → 이동 · ↑ 점프 · Enter 공격 · 5 또는 ; 스킬', GW / 2, 130, 12);
     text('점프 중 공격 + 방향키 = 스파이크 방향', GW / 2, 152, 11, '#ffe08a');
     text('스파이크를 5번 맞히면 스킬 사용 가능', GW / 2, 168, 11, '#ffe08a');
-    text('Z 또는 Enter를 눌러 시작', GW / 2, 200, 15, '#fff3a0');
-    text('게임 중 Backspace 3번 = 처음부터 다시', GW / 2, 222, 10);
+    text(`속도: ◀ ${SPEEDS[speedIdx].name} ▶   (↑↓ 또는 R/F)`, GW / 2, 186, 11, '#bfe6ff');
+    text('Z 또는 Enter를 눌러 시작', GW / 2, 206, 15, '#fff3a0');
+    if (dictTest) text('🧪 테스트 모드: 독재 100% (0으로 끄기)', GW / 2, 240, 10, '#ff8080');
+    text('Backspace 3번 = 언제든 처음 화면으로', GW / 2, 222, 10);
   }
 
   if (fade > 0) {
