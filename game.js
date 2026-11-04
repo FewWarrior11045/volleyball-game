@@ -16,30 +16,36 @@ const CONFIG = {
 const CHARACTERS = [
   { name: '무표정맨', grade: 'COMMON', type: 'face', img: 'assets/face1.png', skill: null,
     skillName: '???', desc: ['특수능력 준비 중'] },
-  { name: '스마일맨', grade: 'COMMON', type: 'face', img: 'assets/face2.png', skill: 'meteor',
-    skillName: '메테오 서브', desc: ['공을 하늘로 띄워 운석처럼 강타!', '막을 순 있지만 엄청 셈'] },
+  { name: '장민욱', grade: 'COMMON', type: 'sprite', img: 'assets/minwook.png', w: 58, h: 58, skill: 'meteor',
+    skillName: '메테오 서브', desc: ['거대 운석 낙하 + 벽 3번 튕겨 꽂기!', '상대 납작·느려짐·판정↓, 공 빨라짐'] },
   { name: '키다리', grade: 'EPIC', type: 'sprite', img: 'assets/tall.png', w: 30, h: 70, skill: 'giant',
     skillName: '거인화', desc: ['5초 동안 키가 3배!', '높은 공도 다 막는다'] },
-  { name: '허우적맨', grade: 'RARE', type: 'sprite', img: 'assets/swim.png', w: 40, h: 68, skill: 'whirl',
+  { name: '김지연', grade: 'RARE', type: 'sprite', img: 'assets/swim.png', w: 40, h: 68, skill: 'whirl',
     skillName: '회전 회오리', desc: ['3초 동안 2배로 커져서 회전!', '닿는 공을 엄청 세게 날림'] },
   { name: '문경목', grade: 'LEGENDARY', type: 'sprite', img: 'assets/hair.png', w: 62, h: 54, skill: 'hairbeam',
     skillName: '탈모빔', desc: ['하늘에서 거대한 빔 발사!', '라운드 끝까지 상대 쪼그라듦'] },
-  { name: '촛불 마스터', grade: 'LEGENDARY', type: 'sprite', img: 'assets/democracy.png', w: 34, h: 66, skill: 'democracy',
+  { name: '김민주', grade: 'LEGENDARY', type: 'sprite', img: 'assets/democracy.png', w: 34, h: 66, skill: 'democracy',
     eyes: [[0.385, 0.249], [0.581, 0.249]], // 사진 속 눈 위치 (가로, 세로 비율)
     skillName: '민주주의 제1장', desc: ['영역전개! 9명으로 분신했다가', '거대 지팡이로 공을 꽂아 넣음'] },
+  { name: '파티왕', grade: 'EPIC', type: 'face', img: 'assets/wonder.png', skill: 'party',
+    skillName: '미러볼 파티', desc: ['미러볼 + 팬 10명 등장!', '6초 동안 팬들이 공을 대신 침'] },
 ];
 // 등급 색깔
 const GRADE_COLOR = { COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f' };
 
 // 스킬 시간 (25프레임 = 1초)
-const SKILL_FRAMES = { giant: 125, whirl: 75, hairbeam: 125, democracy: 8, meteor: 8 };
+const SKILL_FRAMES = { giant: 125, whirl: 75, hairbeam: 125, democracy: 8, meteor: 8, party: 150 };
+const PARTY_INTRO = 62; // 파티 시작 연출 (2.5초, 경기 멈춤)
+let party = null;       // { side, girls, cd } 파티 중인 쪽
 const DEMO_FRAMES = 80;    // 민주주의 영역전개 연출 길이 (3.2초, 모든 게 슬로우)
 const DEMO_HIT = 74;       // 지팡이가 공을 치는 순간
 const DICTATOR_CHANCE = 0.15; // 민주주의를 '독재'로 막을 확률 (15%)
 let dictTest = false;        // 테스트: 타이틀에서 0 누르면 독재 100%
 const DICT_SLOW = 0.05;
 // 메테오 서브
-const METEOR_TOSS = 18, METEOR_HIT = 30, METEOR_END = 46;
+const METEOR_APPEAR = 34, METEOR_IMPACT = 66, METEOR_END = 104; // 약 4초
+let ballBoost = 1; // 메테오 맞은 라운드엔 공이 빨라짐
+const FLAT_HIT = 0.75; // 납작해진 상대의 가로 판정 (원래의 75%)
 const METEOR_LINES = [
   '뭘 봐 ㅆ바라, 뚝배기 깨지기 싫으면 피해라.',
   '뭘 봐 ㅆ바라, 하늘에서 떨어지는 건 못 받아.',
@@ -119,7 +125,8 @@ function makePlayer(side) {
     powerT: 0, diveDir: 0, lyingT: 0, collided: false, score: 0, anim: 0,
     char: side, picked: false,          // 고른 캐릭터
     mana: 0, skillT: 0, skillMax: 1, hm: 1, hw: 1, shrinkT: 0,
-    frozen: false, forceBump: false, redT: 0, // 독재: 멈춰서 받기만          // 마나, 스킬 남은 시간, 키 배율
+    frozen: false, forceBump: false, redT: 0, // 독재: 멈춰서 받기만
+    flat: false, // 메테오 맞으면 납작 + 느려짐          // 마나, 스킬 남은 시간, 키 배율
     color: SIDE_COLOR[side],
   };
 }
@@ -146,20 +153,22 @@ function resetRound(server) {
   for (const p of players) {
     Object.assign(p, { y: P_GROUND_Y, vy: 0, state: NORMAL, powerT: 0, lyingT: 0, collided: false });
     // 탈모빔은 라운드 끝나면 사라짐 (시간 상관없이)
-    p.shrinkT = 0; p.frozen = false; p.forceBump = false; p.redT = 0;
+    p.shrinkT = 0; p.frozen = false; p.forceBump = false; p.redT = 0; p.flat = false;
     if (CHARACTERS[p.char].skill === 'hairbeam') p.skillT = 0;
     if (CHARACTERS[p.char].skill === 'democracy') p.skillT = 0; // 민주주의도 라운드 끝나면 해제
   }
   cine = null; // 남아 있는 연출(영역전개·빔)도 정리
+  if (party) party.girls.forEach((g) => (g.jumpT = 0));
   Object.assign(ball, { x: server === 0 ? LEFT_SERVE_X : RIGHT_SERVE_X, y: 0, vx: 0, vy: 1, power: false, unblockable: false, trail: [] });
   effects.length = 0;
-  craters.length = 0; smokes.length = 0; shake = 0; ball.meteor = false;
+  craters.length = 0; smokes.length = 0; shake = 0; ball.meteor = false; ballBoost = 1; ball.path = null; ball.pathFrom = null;
   state = 'ready';
   timer = 0; // "Ready?" 30프레임(1.2초) 깜빡이며 화면 밝아짐
 }
 
 function newGame() {
   for (const p of players) Object.assign(p, { score: 0, mana: 0, skillT: 0, hm: 1, hw: 1, shrinkT: 0 });
+  party = null;
   cine = null;
   winner = -1;
   popups.length = 0;
@@ -186,17 +195,34 @@ function updatePlayer(p, inp) {
       for (let i = 0; i < 70; i++) candles.push({ x: Math.random() * GW, y: 20 + Math.random() * 270, d: Math.random() * 14, s: 0.6 + Math.random() * 0.8, f: Math.random() * 6 });
       cine = { kind: 'democracy', t: 0, caster: p, target: players[1 - p.side], candles, counter: Math.random() < (dictTest ? 1 : DICTATOR_CHANCE) };
     }
-    if (ch.skill === 'meteor') {
+    if (ch.skill === 'party') {
+      const girls = [];
+      const hues = [330, 280, 200, 50, 0, 160, 300, 20, 240, 100];
+      for (let i = 0; i < 10; i++) {
+        const hx = p.side === 0 ? 14 + i * 19 : GW - 14 - i * 19;
+        girls.push({ x: hx, home: hx, hue: hues[i], hair: ['#2b1b10', '#f2d06b', '#ff8fc8', '#6b3b12', '#111'][i % 5], ph: Math.random() * 6, jumpT: 0, jx: 0, jy: 0 });
+      }
+      party = { side: p.side, caster: p, girls, cd: 0 };
+      cine = { kind: 'party', t: 0, caster: p };
+      sfx('whoosh');
+    } else if (ch.skill === 'meteor') {
       const lines = METEOR_LINES;
-      cine = { kind: 'meteor', t: 0, caster: p, target: players[1 - p.side], from: { x: ball.x, y: ball.y },
-        line: lines[Math.floor(Math.random() * lines.length)], casterY: p.y };
-      ball.unblockable = false; ball.power = false;
+      const cracks = [];
+      for (let n = 0; n < 7; n++) {
+        let x = GW / 2, y = GH / 2; const pts = [{ x, y }]; const a = (n / 7) * Math.PI * 2 + Math.random() * 0.5;
+        for (let i = 0; i < 9; i++) { x += Math.cos(a + (Math.random() - 0.5)) * 26; y += Math.sin(a + (Math.random() - 0.5)) * 18; pts.push({ x, y }); }
+        cracks.push(pts);
+      }
+      const T = players[1 - p.side];
+      cine = { kind: 'meteor', t: 0, caster: p, target: T, cracks, debris: [],
+        portalX: T.x + (p.side === 0 ? -40 : 40), line: lines[Math.floor(Math.random() * lines.length)] };
       sfx('whoosh');
     } else popups.push({ text: ch.skillName + '!', x: p.x, y: 120, t: 30, color: p.color });
   }
   if (p.skillT > 0) p.skillT--;
   let [tw, th] = p.skillT > 0 && SKILL_SIZE[ch.skill] ? SKILL_SIZE[ch.skill] : [1, 1];
   if (p.shrinkT > 0) { p.shrinkT--; tw *= SHRINK; th *= SHRINK; }
+  if (p.flat) { tw *= 1.5; th *= 0.4; } // 납작
   p.hm += (th - p.hm) * 0.35;
   if (Math.abs(th - p.hm) < 0.01) p.hm = th;
   p.hw += (tw - p.hw) * 0.35;
@@ -208,8 +234,9 @@ function updatePlayer(p, inp) {
   if (p.state === LYING) { if (--p.lyingT <= 0) p.state = NORMAL; return; }
 
   // 좌우 이동
-  if (p.state === DIVE) p.x += p.diveDir * 8;
-  else p.x += inp.x * 6;
+  const slow = p.flat ? 0.5 : 1; // 납작하면 이속 절반
+  if (p.state === DIVE) p.x += p.diveDir * 8 * slow;
+  else p.x += inp.x * 6 * slow;
   const [mn, mx] = p.side === 0 ? [32, 184] : [248, 400];
   p.x = Math.max(mn, Math.min(mx, p.x));
 
@@ -235,15 +262,17 @@ function updatePlayer(p, inp) {
 
 // ----- 공 움직임 (땅에 닿으면 true) -----
 function updateBall() {
-  ball.rot += ball.vx * 0.06;
-  const fx = ball.x + ball.vx;
+  if (ball.path) return followPath();
+  const m = ballBoost; // 메테오 맞은 라운드엔 시간이 빨리 흐르는 것처럼 (같은 궤적, 더 빠름)
+  ball.rot += ball.vx * 0.06 * m;
+  const fx = ball.x + ball.vx * m;
   if (fx < BALL_R || fx > GW) ball.vx = -ball.vx;
-  if (ball.y + ball.vy < 0) ball.vy = 1;
+  if (ball.y + ball.vy * m < 0) ball.vy = 1;
   if (Math.abs(ball.x - NET_X) < NET_HW && ball.y > NET_TOP) {
     if (ball.y <= NET_PILLAR_TOP) { if (ball.vy > 0) ball.vy = -ball.vy; }
     else ball.vx = ball.x < NET_X ? -Math.abs(ball.vx) : Math.abs(ball.vx);
   }
-  if (ball.y + ball.vy > BALL_GROUND_Y) {
+  if (ball.y + ball.vy * m > BALL_GROUND_Y) {
     ball.y = BALL_GROUND_Y;
     ball.vy = -ball.vy;
     ball.power = false;
@@ -255,9 +284,43 @@ function updateBall() {
   }
   ball.trail.push({ x: ball.x, y: ball.y });
   if (ball.trail.length > (ball.meteor ? 12 : 2)) ball.trail.shift();
-  ball.x += ball.vx;
-  ball.y += ball.vy;
-  ball.vy += 1;
+  ball.x += ball.vx * m;
+  ball.y += ball.vy * m;
+  ball.vy += 1 * m;
+  return false;
+}
+
+// 정해진 길(벽 3번)을 따라 빠르게 움직이는 공
+const PATH_SEG = 4; // 한 구간에 걸리는 프레임
+function followPath() {
+  const from = ball.pathFrom || (ball.pathFrom = { x: ball.x, y: ball.y });
+  const to = ball.path[0];
+  ball.pathT++;
+  const k = ball.pathT / PATH_SEG;
+  const px = ball.x, py = ball.y;
+  ball.x = from.x + (to.x - from.x) * k;
+  ball.y = from.y + (to.y - from.y) * k;
+  ball.vx = ball.x - px; ball.vy = ball.y - py; // 회전·꼬리용
+  ball.rot += ball.vx * 0.06;
+  for (let i = 0; i < 4; i++) ball.trail.push({ x: px + (ball.x - px) * i / 4, y: py + (ball.y - py) * i / 4 });
+  while (ball.trail.length > 24) ball.trail.shift();
+  if (ball.pathT >= PATH_SEG) {
+    ball.path.shift(); ball.pathT = 0; ball.pathFrom = { x: to.x, y: to.y };
+    if (ball.path.length) {
+      // 벽에 쾅!
+      shake = Math.max(shake, 6);
+      effects.push({ x: to.x, y: to.y, t: 8 });
+      sfx('thud');
+    } else {
+      // 바닥에 꽂힘 → 점수
+      ball.path = null; ball.pathFrom = null;
+      ball.y = BALL_GROUND_Y; ball.vx = 0; ball.vy = -10;
+      ball.power = false; ball.unblockable = false;
+      effects.push({ x: ball.x, y: BALL_GROUND_Y + 20, t: 8 });
+      if (ball.meteor) meteorImpact(ball.x);
+      return true;
+    }
+  }
   return false;
 }
 
@@ -301,7 +364,11 @@ function hitTop(p) { return p.y - P_HALF - (p.hm - 1) * P_HALF * 2; }
 function checkCollisions(inputs) {
   if (ball.unblockable) return; // 지팡이로 꽂은 공은 못 막음
   for (const p of players) {
-    const touching = Math.abs(ball.x - p.x) <= P_HALF * p.hw && ball.y >= hitTop(p) && ball.y <= p.y + P_HALF;
+    // 메테오 맞아 납작해지면 판정이 보이는 것보다 작아짐 (받기 어려움)
+    // 납작: 가로 판정은 원래의 75%, 세로는 몸 위쪽 40까지만 (원래 64)
+    const hx = p.flat ? P_HALF * FLAT_HIT : P_HALF * p.hw;
+    const top = p.flat ? p.y + P_HALF - 40 : hitTop(p);
+    const touching = Math.abs(ball.x - p.x) <= hx && ball.y >= top && ball.y <= p.y + P_HALF;
     if (touching) {
       if (!p.collided) { hitBall(p, inputs[p.side]); p.collided = true; }
     } else p.collided = false;
@@ -314,6 +381,7 @@ function step(scoring) {
   const touched = updateBall();
   players.forEach((p, i) => updatePlayer(p, inputs[i]));
   checkCollisions(inputs);
+  partyAuto();
   if (touched && scoring) {
     cine = null;
     lastScorer = ball.x < NET_X ? 1 : 0;
@@ -501,45 +569,214 @@ function drawDomain() {
   if (t >= DEMO_HIT) drawBall();
 }
 
+// ----- 미러볼 파티 -----
+function partyActive() { return party && party.caster.skillT > 0; }
+
+// 팬들이 공을 대신 침: 공이 우리 코트로 내려오면 제일 가까운 팬이 점프해서 상대 쪽으로
+function partyAuto() {
+  if (!party) return;
+  for (const g of party.girls) if (g.jumpT > 0) g.jumpT--;
+  if (!partyActive()) { if (party.girls.every((g) => g.jumpT === 0)) party = null; return; }
+  if (party.cd > 0) { party.cd--; return; }
+  const mine = party.side === 0 ? ball.x < NET_X - 10 : ball.x > NET_X + 10;
+  if (!mine || ball.vy <= 0 || ball.y < 165 || ball.unblockable) return;
+  let best = party.girls[0];
+  for (const g of party.girls) if (Math.abs(g.home - ball.x) < Math.abs(best.home - ball.x)) best = g;
+  best.jumpT = 10; best.jx = ball.x; best.jy = ball.y + 14;
+  const toward = party.side === 0 ? 1 : -1;
+  if (Math.random() < 0.5) { ball.vx = toward * 16; ball.vy = -9; }   // 높게 넘기기
+  else { ball.vx = toward * 20; ball.vy = -6; }                       // 빠르게 넘기기
+  ball.power = true; ball.meteor = false;
+  players.forEach((p) => (p.collided = true));
+  party.cd = 8;
+  effects.push({ x: ball.x, y: ball.y, t: 8 });
+  for (let i = 0; i < 4; i++) popups.push({ text: '♥', x: ball.x + (Math.random() - 0.5) * 40, y: ball.y + 10, t: 20, color: '#ff5fa8' });
+  sfx('pop');
+}
+
+function drawHeart(x, y, s, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x, y + s * 0.35);
+  ctx.bezierCurveTo(x - s, y - s * 0.4, x - s * 0.5, y - s, x, y - s * 0.45);
+  ctx.bezierCurveTo(x + s * 0.5, y - s, x + s, y - s * 0.4, x, y + s * 0.35);
+  ctx.fill();
+}
+
+// 팬 한 명 (발 위치 x,y)
+function drawFan(g, x, y, t, sc = 1) {
+  const bob = Math.sin(t * 0.5 + g.ph) * 2;
+  ctx.save(); ctx.translate(x, y + bob); ctx.scale(sc, sc);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#f2c9a0'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-3, -10); ctx.lineTo(-4, 0); ctx.moveTo(3, -10); ctx.lineTo(4, 0); ctx.stroke();
+  ctx.fillStyle = `hsl(${g.hue},80%,60%)`;
+  ctx.beginPath(); ctx.moveTo(-8, -10); ctx.lineTo(8, -10); ctx.lineTo(4, -24); ctx.lineTo(-4, -24); ctx.fill();
+  const wave = Math.sin(t * 0.6 + g.ph) * 0.6;
+  ctx.strokeStyle = '#f2c9a0'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-4, -22); ctx.lineTo(-10, -32 + wave * 6); ctx.moveTo(4, -22); ctx.lineTo(10, -32 - wave * 6); ctx.stroke();
+  ctx.fillStyle = g.hair;
+  ctx.beginPath(); ctx.arc(0, -31, 8, Math.PI, 0); ctx.lineTo(8, -24); ctx.lineTo(-8, -24); ctx.fill();
+  ctx.fillStyle = '#f7d6b5';
+  ctx.beginPath(); ctx.arc(0, -30, 6, 0, 7); ctx.fill();
+  drawHeart(-2.4, -30.5, 2, '#ff2d6f'); drawHeart(2.4, -30.5, 2, '#ff2d6f'); // 눈에 하트
+  ctx.strokeStyle = '#c0306a'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(0, -27.5, 1.6, 0.2, Math.PI - 0.2); ctx.stroke();
+  ctx.restore();
+}
+
+function drawMirrorBall(x, y, r, t) {
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y - r); ctx.stroke();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.clip();
+  ctx.fillStyle = '#8a8fa0'; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  const n = 8;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const v = Math.sin(i * 1.7 + j * 2.3 + t * 0.4);
+    ctx.fillStyle = v > 0.6 ? '#ffffff' : v > 0 ? '#c9cfe0' : '#6d7385';
+    const w = (r * 2) / n;
+    ctx.fillRect(x - r + i * w + ((t * 0.5) % w), y - r + j * w, w - 0.6, w - 0.6);
+  }
+  ctx.restore();
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 1, x, y, r * 1.6);
+  g.addColorStop(0, 'rgba(255,255,255,.5)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, 7); ctx.fill();
+}
+
+function drawPartyLights(x, y, t, alpha) {
+  const cols = ['255,80,180', '80,220,255', '255,230,80', '170,90,255', '80,255,150'];
+  for (let i = 0; i < 5; i++) {
+    const a = t * 0.06 + i * 1.256;
+    const ex = x + Math.cos(a) * 520, ey = y + Math.abs(Math.sin(a)) * 420 + 60;
+    const g = ctx.createLinearGradient(x, y, ex, ey);
+    g.addColorStop(0, `rgba(${cols[i]},${0.5 * alpha})`); g.addColorStop(1, `rgba(${cols[i]},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(ex - 40, ey); ctx.lineTo(ex + 40, ey); ctx.fill();
+  }
+  // 반짝이 점
+  for (let i = 0; i < 30; i++) {
+    const sx = (i * 71 + t * 3) % GW, sy = (i * 43 + Math.sin(t * 0.1 + i) * 30 + 300) % 260;
+    ctx.fillStyle = `rgba(255,255,255,${(0.3 + 0.5 * Math.abs(Math.sin(t * 0.3 + i))) * alpha})`;
+    ctx.fillRect(sx, sy, 1.6, 1.6);
+  }
+}
+
+// 파티 중 (연출 끝난 뒤 6초): 경기 화면 위에 그림
+function drawPartyField() {
+  if (!party || (cine && cine.kind === 'party')) return;
+  const t = performance.now() / 40;
+  const on = partyActive();
+  const a = on ? 1 : 0.4;
+  if (on) {
+    ctx.fillStyle = 'rgba(30,0,60,.35)'; ctx.fillRect(0, 0, GW, GH);
+    drawPartyLights(GW / 2, 26, t, 0.6);
+    drawMirrorBall(GW / 2, 26, 10, t);
+  }
+  ctx.save(); ctx.globalAlpha = a;
+  for (const g of party.girls) {
+    if (g.jumpT > 0) {
+      const k = g.jumpT / 10;
+      drawFan(g, g.jx, g.jy + 30 * (1 - k), t);
+      drawHeart(g.jx, g.jy - 46 - (10 - g.jumpT) * 2, 5, `rgba(255,60,140,${k})`);
+    } else drawFan(g, g.home, 278, t, 0.9);
+  }
+  ctx.restore();
+  if (on) {
+    const P = party.caster;
+    text('PARTY TIME ♪', GW / 2, 64, 12, '#ff9ad5');
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(GW / 2 - 40, 70, 80, 3);
+    ctx.fillStyle = '#ff5fa8'; ctx.fillRect(GW / 2 - 40, 70, 80 * P.skillT / P.skillMax, 3);
+  }
+}
+
+// 파티 시작 연출 (2.5초)
+function drawPartyIntro() {
+  const c = cine, t = c.t, P = c.caster;
+  const k = Math.min(1, t / 8);
+  ctx.fillStyle = `rgba(10,0,25,${0.82 * k})`; ctx.fillRect(0, 0, GW, GH);
+  // 미러볼이 내려옴
+  const by = Math.min(60, -20 + t * 6);
+  if (t > 6) drawPartyLights(GW / 2, by, t * 2, Math.min(1, (t - 6) / 8));
+  drawMirrorBall(GW / 2, by, 22, t * 2);
+  // 무대 바닥 불빛
+  for (let i = 0; i < 12; i++) {
+    const on = (Math.floor(t / 3) + i) % 3 === 0;
+    ctx.fillStyle = on ? `hsla(${(i * 40 + t * 8) % 360},90%,60%,.55)` : 'rgba(255,255,255,.06)';
+    ctx.fillRect(i * 36, 276, 34, 28);
+  }
+  drawPlayer(P);
+  // 팬 10명이 양쪽에서 뛰어 들어옴
+  party.girls.forEach((g, i) => {
+    const start = 14 + i * 3;
+    if (t < start) return;
+    const kk = Math.min(1, (t - start) / 10);
+    const from = i % 2 ? -30 : GW + 30;
+    const x = from + (g.home - from) * (1 - (1 - kk) * (1 - kk));
+    const jump = kk < 1 ? Math.abs(Math.sin(kk * Math.PI * 3)) * 12 : Math.abs(Math.sin(t * 0.4 + g.ph)) * 6;
+    drawFan(g, x, 274 - jump, t, 1.3);
+  });
+  // 하트가 둥둥
+  for (let i = 0; i < 14; i++) {
+    const hy = 280 - ((t * 3 + i * 23) % 260), hx = (i * 61 + Math.sin(t * 0.2 + i) * 14) % GW;
+    if (t > 20) drawHeart(hx, hy, 4 + (i % 3), `rgba(255,${60 + i * 10},160,.8)`);
+  }
+  // 글자
+  const sc = Math.min(1, t / 6);
+  text('PARTY TIME!!', GW / 2, 118 + Math.sin(t * 0.5) * 3, 34 * sc, '#ff7ac8');
+  if (t > 10) text(CHARACTERS[P.char].skillName, GW / 2, 142, 14, '#ffe066');
+  if (t > 24) text('♥ 팬들이 6초 동안 공을 대신 쳐 줍니다 ♥', GW / 2, 162, 10, '#ffffff');
+  if (t >= PARTY_INTRO - 3) { ctx.fillStyle = `rgba(255,255,255,${(t - (PARTY_INTRO - 3)) / 4})`; ctx.fillRect(0, 0, GW, GH); }
+}
+
 // ----- 메테오 서브 (궤도 파괴) -----
 function updateMeteor() {
-  const c = cine, P = c.caster, s = P.side === 0 ? 1 : -1;
+  const c = cine, T = c.target;
   c.t++;
   players.forEach((p) => p.anim++);
-  const top = { x: P.x + s * 6, y: 30 };
-  const hit = { x: P.x + s * 16, y: 104 };
-  if (c.t <= METEOR_TOSS) {
-    // 1. 토스: 공이 캐릭터 머리 위 하늘 높이 올라감 (경기 멈춤)
-    const k = c.t / METEOR_TOSS, e = 1 - (1 - k) * (1 - k);
-    ball.x = c.from.x + (top.x - c.from.x) * e;
-    ball.y = c.from.y + (top.y - c.from.y) * e;
-    ball.vx = 0; ball.vy = 0;
-    ball.rot += 0.3;
-  } else if (c.t < METEOR_HIT) {
-    // 2. 점프: 캐릭터가 떠오르고 공은 타점으로 내려옴
-    const k = (c.t - METEOR_TOSS) / (METEOR_HIT - METEOR_TOSS);
-    ball.x = top.x + (hit.x - top.x) * k;
-    ball.y = top.y + (hit.y - top.y) * k * k;
-    P.y = c.casterY + (hit.y + 34 - c.casterY) * (1 - (1 - k) * (1 - k));
-    P.state = POWER; P.powerT = 99; P.vy = 0;
-    ball.rot += 0.5;
-  } else if (c.t === METEOR_HIT) {
-    // 3. 쿵! 상대 코트로 운석처럼 내리꽂음 (막을 수는 있음)
+  // 운석 충돌!
+  if (c.t === METEOR_IMPACT) {
+    T.flat = true;                       // 납작 + 느려짐 (라운드 끝까지)
+    ballBoost = 1.35;                    // 공 빨라짐 (라운드 끝까지)
+    craters.push({ x: T.x, seed: Math.random() * 1000, big: true });
+    shake = 16;
+    for (let i = 0; i < 22; i++) {
+      smokes.push({ x: T.x + (Math.random() - 0.5) * 90, y: 268 - Math.random() * 16,
+        vx: (Math.random() - 0.5) * 2.4, vy: -0.3 - Math.random() * 1.2, r: 6 + Math.random() * 9, t: 30 + Math.random() * 30 });
+    }
+    for (let i = 0; i < 36; i++) {
+      const a = -Math.PI * Math.random(), sp = 3 + Math.random() * 7;
+      c.debris.push({ x: T.x, y: 262, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2, r: 1.5 + Math.random() * 3 });
+    }
+    sfx('explode'); sfx('boom');
+  }
+  if (c.t === 4) sfx('rumble');
+  for (const d of c.debris) { d.x += d.vx; d.y += d.vy; d.vy += 0.35; }
+  // 모든 게 슈퍼 슬로우 (12프레임에 1번만 움직임)
+  if (c.t % 12 === 0) { step(true); if (!cine) return; }
+  if (c.t >= METEOR_END) {
+    // 연출 끝 → 공을 불타는 혜성처럼 상대 코트로 자동 발사 (막을 수는 있음)
+    // 벽에 3번 빠르게 튕긴 뒤 상대 코트에 무조건 꽂힘 (못 막음)
+    const P = c.caster, s = P.side === 0 ? 1 : -1;
+    const far = s > 0 ? GW : BALL_R, near = s > 0 ? BALL_R : GW; // 상대 쪽 벽 / 우리 쪽 벽
     const tx = s > 0 ? 270 + Math.random() * 120 : 42 + Math.random() * 120;
-    ball.x = hit.x; ball.y = hit.y;
-    ball.vx = Math.round((tx - ball.x) / 8);
-    ball.vy = Math.round((BALL_GROUND_Y - ball.y) / 8 - 3.5);
-    ball.power = true; ball.meteor = true; ball.trail = [];
-    P.state = JUMP; P.powerT = 0; P.vy = 0; P.collided = true;
-    shake = 7;
+    ball.x = P.x + s * 20; ball.y = 60;
+    ball.path = [
+      { x: far, y: 95 + Math.random() * 30 },   // 1번째 벽
+      { x: near, y: 50 + Math.random() * 30 },  // 2번째 벽
+      { x: far, y: 120 + Math.random() * 30 },  // 3번째 벽
+      { x: tx, y: BALL_GROUND_Y },               // 상대 코트 바닥
+    ];
+    ball.pathT = 0;
+    ball.vx = 0; ball.vy = 0;
+    ball.power = true; ball.meteor = true; ball.unblockable = true; ball.trail = [];
+    P.collided = true;
+    shake = 8;
     effects.push({ x: ball.x, y: ball.y, t: 8 }, { x: ball.x, y: ball.y, t: 6 });
     sfx('boom');
-  } else {
-    // 4. 날아가는 중엔 원래 속도
-    step(true);
-    if (!cine) return;
+    cine = null;
   }
-  if (c.t >= METEOR_END) cine = null;
 }
 
 function meteorImpact(x) {
@@ -555,6 +792,14 @@ function meteorImpact(x) {
 
 function drawCraters() {
   for (const cr of craters) {
+    ctx.save();
+    if (cr.big) {
+      ctx.translate(cr.x, 274); ctx.scale(2.4, 1.6); ctx.translate(-cr.x, -274);
+      // 아직 뜨거운 바닥
+      const hg = ctx.createRadialGradient(cr.x, 274, 1, cr.x, 274, 16);
+      hg.addColorStop(0, `rgba(255,${90 + Math.sin(performance.now() / 150) * 40},20,.8)`); hg.addColorStop(1, 'rgba(255,40,0,0)');
+      ctx.fillStyle = hg; ctx.beginPath(); ctx.ellipse(cr.x, 275, 16, 3.5, 0, 0, 7); ctx.fill();
+    }
     ctx.fillStyle = 'rgba(60,35,20,.75)';
     ctx.beginPath(); ctx.ellipse(cr.x, 274, 30, 6, 0, 0, 7); ctx.fill();
     ctx.fillStyle = 'rgba(30,15,8,.8)';
@@ -568,55 +813,178 @@ function drawCraters() {
       for (let j = 0; j < 3; j++) { x += Math.cos(a + Math.sin(cr.seed + i * j)) * 9; y += Math.sin(a) * 2.2; ctx.lineTo(x, y); }
       ctx.stroke();
     }
+    ctx.restore();
   }
 }
 
 function drawSmokes() {
   for (const sm of smokes) {
-    ctx.fillStyle = `rgba(90,85,80,${Math.min(0.55, sm.t / 60)})`;
+    ctx.fillStyle = `rgba(90,85,80,${Math.min(0.35, sm.t / 90)})`;
     ctx.beginPath(); ctx.arc(sm.x, sm.y, sm.r, 0, 7); ctx.fill();
   }
 }
 
-function drawMeteor() {
-  const c = cine, t = c.t, P = c.caster;
-  const k = t > METEOR_END - 10 ? (METEOR_END - t) / 10 : Math.min(1, t / 6);
-  // 코트 조명이 어두워짐
-  ctx.fillStyle = `rgba(20,0,0,${0.55 * k})`;
-  ctx.fillRect(0, 0, GW, GH);
-  // 화염 오라가 공에 압축됨
-  if (t < METEOR_HIT) {
-    for (let i = 0; i < 14; i++) {
-      const a = i * 0.45 + t * 0.35, r = 50 - ((t * 3 + i * 7) % 50);
-      ctx.fillStyle = i % 2 ? 'rgba(255,120,30,.9)' : 'rgba(255,220,120,.9)';
-      ctx.beginPath(); ctx.arc(ball.x + Math.cos(a) * r, ball.y + Math.sin(a) * r, 2, 0, 7); ctx.fill();
-    }
-    const gr = 14 + t * 0.9;
-    const g = ctx.createRadialGradient(ball.x, ball.y, 4, ball.x, ball.y, gr);
-    g.addColorStop(0, 'rgba(255,230,150,.9)'); g.addColorStop(0.5, 'rgba(255,70,20,.6)'); g.addColorStop(1, 'rgba(150,0,0,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ball.x, ball.y, gr, 0, 7); ctx.fill();
+function meteorPos(c) {
+  // 포털(하늘)에서 상대 머리 위로: 처음엔 천천히, 마지막엔 확 빨라짐
+  const T = c.target, k = Math.max(0, Math.min(1, (c.t - METEOR_APPEAR) / (METEOR_IMPACT - METEOR_APPEAR)));
+  const e = k * k * k;
+  return { x: c.portalX + (T.x - c.portalX) * e, y: 18 + (240 - 18) * e, k };
+}
+
+function drawMeteorRock(x, y, r, t) {
+  // 불꽃 꼬리 (위쪽으로)
+  for (let i = 0; i < 9; i++) {
+    const w = r * (0.9 - i * 0.07), ox = Math.sin(t * 0.7 + i) * r * 0.25;
+    const g = ctx.createLinearGradient(x, y, x + ox, y - r * (2.6 + i * 0.25));
+    g.addColorStop(0, 'rgba(255,220,140,.85)'); g.addColorStop(0.35, 'rgba(255,80,20,.7)'); g.addColorStop(1, 'rgba(120,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x - w, y);
+    ctx.quadraticCurveTo(x + ox - w * 0.6, y - r * 1.6, x + ox, y - r * (2.6 + i * 0.25));
+    ctx.quadraticCurveTo(x + ox + w * 0.6, y - r * 1.6, x + w, y);
+    ctx.fill();
   }
+  // 바깥 불빛
+  const cg = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 1.7);
+  cg.addColorStop(0, 'rgba(255,90,20,.9)'); cg.addColorStop(1, 'rgba(255,0,0,0)');
+  ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(x, y, r * 1.7, 0, 7); ctx.fill();
+  // 돌덩이
+  const rg = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+  rg.addColorStop(0, '#5a2a1a'); rg.addColorStop(1, '#1a0805');
+  ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  // 빛나는 균열
+  ctx.strokeStyle = 'rgba(255,140,40,.95)'; ctx.lineWidth = 2; ctx.shadowColor = '#ff4a00'; ctx.shadowBlur = 8;
+  for (let i = 0; i < 6; i++) {
+    const a = i * 1.05 + 0.3;
+    ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r * 0.15, y + Math.sin(a) * r * 0.15);
+    ctx.lineTo(x + Math.cos(a + 0.3) * r * 0.55, y + Math.sin(a + 0.3) * r * 0.55);
+    ctx.lineTo(x + Math.cos(a) * r * 0.92, y + Math.sin(a) * r * 0.92); ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+}
+
+function drawRedPortal(x, y, t, k) {
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(1, 0.38);
+  const grow = Math.min(1, (t - 10) / 16) * k;
+  const rings = [
+    { r: 110, c: '#ff2a2a', w: 4, sp: 0.05, d: [18, 8] },
+    { r: 88, c: '#ff8a3a', w: 2, sp: -0.08, d: [5, 6] },
+    { r: 66, c: '#ff2a2a', w: 5, sp: 0.11, d: [30, 10] },
+    { r: 42, c: '#ffd0a0', w: 2, sp: -0.15, d: [] },
+  ];
+  for (const rg of rings) {
+    ctx.save(); ctx.rotate(t * rg.sp);
+    ctx.strokeStyle = rg.c; ctx.lineWidth = rg.w; ctx.setLineDash(rg.d);
+    ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(0, 0, rg.r * grow, 0, 7); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.setLineDash([]);
+  // 포털 안쪽 (검붉은 구멍)
+  const hg = ctx.createRadialGradient(0, 0, 2, 0, 0, 60 * grow);
+  hg.addColorStop(0, 'rgba(0,0,0,.95)'); hg.addColorStop(0.7, 'rgba(120,0,0,.8)'); hg.addColorStop(1, 'rgba(255,40,0,0)');
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(0, 0, 60 * grow, 0, 7); ctx.fill();
+  ctx.restore();
+  // 빨간 번개
+  if (grow > 0.5 && Math.random() < 0.6) {
+    ctx.strokeStyle = 'rgba(255,90,90,.9)'; ctx.lineWidth = 1.6;
+    for (let n = 0; n < 2; n++) {
+      let lx = x + (Math.random() - 0.5) * 160, ly = y;
+      ctx.beginPath(); ctx.moveTo(lx, ly);
+      for (let i = 0; i < 6; i++) { lx += (Math.random() - 0.5) * 30; ly += 10 + Math.random() * 18; ctx.lineTo(lx, ly); }
+      ctx.stroke();
+    }
+  }
+}
+
+function drawMeteor() {
+  const c = cine, t = c.t, P = c.caster, T = c.target;
+  const k = t > METEOR_END - 12 ? (METEOR_END - t) / 12 : Math.min(1, t / 5);
+  // 1. 붉은 어둠
+  const bg = ctx.createRadialGradient(GW / 2, GH / 2, 30, GW / 2, GH / 2, 320);
+  bg.addColorStop(0, `rgba(70,0,0,${0.7 * k})`); bg.addColorStop(1, `rgba(5,0,0,${0.92 * k})`);
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, GW, GH);
+  if (t < 3) { ctx.fillStyle = `rgba(255,40,40,${0.7 - t * 0.22})`; ctx.fillRect(0, 0, GW, GH); }
+  // 화면 금 (처음 0.5초 동안 퍼짐)
+  ctx.save(); ctx.globalAlpha = 0.8 * k;
+  ctx.strokeStyle = '#ff3b3b'; ctx.lineWidth = 1.5; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 6;
+  for (const cr of c.cracks) {
+    const n = Math.min(cr.length, Math.floor(t / 1.2) + 1);
+    ctx.beginPath(); ctx.moveTo(cr[0].x, cr[0].y);
+    for (let i = 1; i < n; i++) ctx.lineTo(cr[i].x, cr[i].y);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 불씨
+  for (let i = 0; i < 26; i++) {
+    const ex = (i * 53 + t * (1 + (i % 3))) % GW, ey = GH - ((i * 37 + t * (2 + (i % 4))) % GH);
+    ctx.fillStyle = i % 2 ? 'rgba(255,120,40,.8)' : 'rgba(255,60,40,.7)';
+    ctx.beginPath(); ctx.arc(ex, ey, 1.2 + (i % 3) * 0.6, 0, 7); ctx.fill();
+  }
+  // 2. 하늘이 찢어지며 포털
+  if (t >= 10) drawRedPortal(c.portalX, 34, t, k);
+  // 시전자: 빨갛게 빛남
+  ctx.save();
+  const on = Math.floor(t / 2) % 2 === 0;
+  const ag = ctx.createRadialGradient(P.x, P.y, 4, P.x, P.y, 70);
+  ag.addColorStop(0, on ? 'rgba(255,60,30,.9)' : 'rgba(255,0,0,.5)'); ag.addColorStop(1, 'rgba(255,0,0,0)');
+  ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(P.x, P.y, 70, 0, 7); ctx.fill();
+  ctx.restore();
   drawPlayer(P);
+  drawPlayer(T);
+  // 3. 거대 운석 낙하
+  if (t >= METEOR_APPEAR && t < METEOR_IMPACT) {
+    const m = meteorPos(c);
+    const r = 34 + 30 * Math.min(1, (t - METEOR_APPEAR) / 10);
+    // 땅에 드리운 그림자
+    ctx.fillStyle = `rgba(0,0,0,${0.25 + m.k * 0.4})`;
+    ctx.beginPath(); ctx.ellipse(T.x, 274, 20 + m.k * 50, 4 + m.k * 6, 0, 0, 7); ctx.fill();
+    drawMeteorRock(m.x, m.y, r, t);
+    if (t > METEOR_IMPACT - 10) shake = Math.max(shake, 4);
+  }
+  // 4. 충돌
+  if (t >= METEOR_IMPACT) {
+    const q = t - METEOR_IMPACT;
+    if (q < 4) { ctx.fillStyle = q < 2 ? `rgba(255,255,240,${0.9 - q * 0.3})` : `rgba(255,60,30,${0.6 - (q - 2) * 0.25})`; ctx.fillRect(0, 0, GW, GH); }
+    for (let i = 0; i < 3; i++) {
+      const rr = (q - i * 4) * 9;
+      if (rr <= 0) continue;
+      ctx.strokeStyle = `rgba(255,${120 + i * 50},80,${Math.max(0, 1 - rr / 260)})`; ctx.lineWidth = 5 - i;
+      ctx.beginPath(); ctx.ellipse(T.x, 270, rr, rr * 0.22, 0, 0, 7); ctx.stroke();
+    }
+    ctx.fillStyle = '#3a1a0e';
+    for (const d of c.debris) { ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7); ctx.fill(); }
+    // 낙인처럼 찍히는 天空破碎
+    const st = Math.max(1, 2.2 - q * 0.25);
+    ctx.save(); ctx.globalAlpha = Math.max(0, k);
+    text('天空破碎', GW / 2, 120, 50 * st, '#ff2a2a');
+    ctx.restore();
+  }
+  drawSmokes();
   drawBall();
-  if (t >= METEOR_HIT && t < METEOR_HIT + 3) { ctx.fillStyle = `rgba(255,200,120,${0.6 - (t - METEOR_HIT) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
   // 글자
   ctx.save(); ctx.globalAlpha = Math.max(0, k);
-  const sc = Math.min(1, t / 5);
-  text('[천공파쇄 (天空破碎)]', GW / 2, 40, 13, '#ffb38a');
-  text('궤도 파괴: 메테오 서브', GW / 2, 66, 26 * sc, '#ff5a1f');
-  text('Orbital Destroyer: Meteor Serve', GW / 2, 82, 9, '#ffd2b0');
+  if (t >= 4 && t < METEOR_IMPACT) {
+    const sc = Math.min(1, (t - 3) / 6);
+    text('天空破碎', GW / 2, 116, 44 * sc, '#ff3b3b');
+    text('[천공파쇄]', GW / 2, 136, 12, '#ffc0a0');
+  }
+  if (t >= 20) {
+    text('궤도 파괴: 메테오 서브', GW / 2, 262, 20, '#ff6a2a');
+    text('Orbital Destroyer: Meteor Serve', GW / 2, 280, 9, '#ffd2b0');
+  }
   // 대사 말풍선
-  if (t >= 4) {
-    const n = Math.min(c.line.length, Math.floor((t - 4) / 0.8));
-    const str = c.line.slice(0, n);
+  if (t >= 8) {
+    const n = Math.min(c.line.length, Math.floor((t - 8) / 0.9));
     ctx.font = 'bold 11px "Malgun Gothic", sans-serif';
     const w = ctx.measureText(c.line).width + 14;
-    const bx = Math.max(6, Math.min(GW - w - 6, P.x - w / 2)), by = 104;
+    const bx = Math.max(6, Math.min(GW - w - 6, P.x - w / 2)), by = P.y - 74;
     ctx.fillStyle = 'rgba(255,255,255,.95)';
     ctx.beginPath(); ctx.roundRect(bx, by, w, 20, 6); ctx.fill();
     ctx.beginPath(); ctx.moveTo(P.x - 5, by + 20); ctx.lineTo(P.x + 5, by + 20); ctx.lineTo(P.x, by + 27); ctx.fill();
-    ctx.fillStyle = '#222'; ctx.textAlign = 'left';
-    ctx.fillText(str, bx + 7, by + 14);
+    ctx.fillStyle = '#b00000'; ctx.textAlign = 'left';
+    ctx.fillText(c.line.slice(0, n), bx + 7, by + 14);
   }
   ctx.restore();
 }
@@ -634,6 +1002,9 @@ function sfx(type) {
       explode: ['sawtooth', 70, 20, 0.5, 0.8],
       thud: ['square', 160, 60, 0.25, 0.2],
       whoosh: ['triangle', 300, 900, 0.12, 0.5],
+      rumble: ['sine', 55, 28, 0.45, 2.4],
+      beat: ['sine', 120, 50, 0.3, 0.12],
+      pop: ['triangle', 600, 1200, 0.12, 0.12],
     }[type];
     if (!set) return;
     const [wave, f0, f1, vol, dur] = set;
@@ -825,6 +1196,7 @@ function drawBeam() {
   if (cine.kind === 'democracy') { drawDomain(); return; }
   if (cine.kind === 'dictator') { drawDictator(); return; }
   if (cine.kind === 'meteor') { drawMeteor(); return; }
+  if (cine.kind === 'party') { drawPartyIntro(); return; }
   if (cine.intro < INTRO_FRAMES) { drawCutIn(); return; }
   const t = cine.t, tx = cine.target.x;
   // 화면 어둡게
@@ -919,7 +1291,11 @@ function update() {
     fade = Math.max(0, fade - 1 / 17);
     if (++timer >= 71) { fade = 0; state = 'play'; }
   } else if (state === 'play') {
-    if (cine && cine.kind === 'meteor') {
+    if (cine && cine.kind === 'party') {
+      cine.t++; players.forEach((p) => p.anim++);
+      if (cine.t % 6 === 0) sfx('beat');
+      if (cine.t >= PARTY_INTRO) cine = null;
+    } else if (cine && cine.kind === 'meteor') {
       updateMeteor();
     } else if (cine && cine.kind === 'dictator') {
       updateDictator();
@@ -966,7 +1342,7 @@ function update() {
   for (const e of effects) e.t--;
   while (effects.length && effects[0].t <= 0) effects.shift();
   if (shake > 0) shake = Math.max(0, shake - 0.8);
-  for (const sm of smokes) { sm.t--; sm.x += sm.vx; sm.y += sm.vy; sm.r += 0.6; }
+  for (const sm of smokes) { sm.t--; sm.x += sm.vx; sm.y += sm.vy; sm.r += 0.25; }
   while (smokes.length && smokes[0].t <= 0) smokes.shift();
   for (const e of popups) e.t--;
   while (popups.length && popups[0].t <= 0) popups.shift();
@@ -1153,7 +1529,7 @@ function drawBall() {
     g.addColorStop(0, 'rgba(255,120,30,.8)'); g.addColorStop(1, 'rgba(255,0,0,0)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ball.x, ball.y, 36, 0, 7); ctx.fill();
   }
-  if (ball.power) ball.trail.forEach((t, i) => drawBallAt(t.x, t.y, 0.25 + i * 0.2));
+  if (ball.power && !ball.meteor) ball.trail.forEach((t, i) => drawBallAt(t.x, t.y, 0.25 + i * 0.2));
   drawBallAt(ball.x, ball.y, 1);
 }
 
@@ -1272,6 +1648,7 @@ function draw() {
   drawCraters();
   drawNet();
   if (state !== 'select') players.forEach(drawPlayer);
+  if (state !== 'select' && state !== 'title') drawPartyField();
   if (state !== 'title' && state !== 'startFadeOut' && state !== 'select') drawBall();
   drawBeam();
   drawEffects();
