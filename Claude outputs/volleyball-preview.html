@@ -292,6 +292,7 @@ function newGame() {
 }
 
 function startGame() {
+  crowd = null; // 다음에 메뉴로 오면 새 멤버 랜덤
   newGame();
   state = 'startMsg';
   timer = 0;
@@ -4024,6 +4025,7 @@ function update() {
     state = 'title'; timer = 0;
     pressed.clear(); return;
   }
+  if (isMenu()) updateCrowd();
   if (state === 'title') {
     players.forEach((p) => p.anim++);
     if (pressed.has('Digit0') || pressed.has('Numpad0')) dictTest = !dictTest; // 테스트 모드
@@ -4230,6 +4232,57 @@ function drawSpriteChar(p, im, ch) {
   } else {
     ctx.fillStyle = p.color;
     ctx.fillRect(-w / 2, 32 - h, w, h);
+  }
+}
+
+// ----- 메뉴 화면: 랜덤 캐릭터 몇 명이 제멋대로 뛰어다님 (계속 교대해서 모두 한 번씩 나옴) -----
+let crowd = null, crowdBag = [];
+function nextCrowdChar() { // 가방에서 하나씩 꺼내기: 다 꺼내면 다시 섞음 → 모든 캐릭터가 골고루 나옴
+  const inUse = new Set((crowd || []).map((c) => c.char));
+  for (let tries = 0; tries < 30; tries++) {
+    if (!crowdBag.length) { crowdBag = CHARACTERS.map((_, i) => i); for (let i = crowdBag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [crowdBag[i], crowdBag[j]] = [crowdBag[j], crowdBag[i]]; } }
+    const c = crowdBag.pop(); if (!inUse.has(c)) return c;
+  }
+  return Math.floor(Math.random() * CHARACTERS.length);
+}
+function newRunner(enter) {
+  const fromLeft = Math.random() < 0.5;
+  return { char: nextCrowdChar(), x: enter ? (fromLeft ? -30 : GW + 30) : 30 + Math.random() * 372, y: P_GROUND_Y, vx: enter ? (fromLeft ? 1 : -1) * (2.5 + Math.random() * 3) : 0, vy: 0,
+    state: NORMAL, anim: Math.random() * 50, side: fromLeft ? 0 : 1, hm: 1, hw: 1, act: enter ? 30 : 0, spin: 0, life: 100 + Math.random() * 175, leaving: false }; // 4~11초 놀다가 퇴장
+}
+function makeCrowd() { crowd = []; const n = 2 + Math.floor(Math.random() * 2); for (let i = 0; i < n; i++) crowd.push(newRunner(false)); } // 2~3명
+function updateCrowd() {
+  if (!crowd) makeCrowd();
+  for (let k = crowd.length - 1; k >= 0; k--) {
+    const c = crowd[k];
+    c.anim++;
+    if (--c.life <= 0 && !c.leaving && c.y === P_GROUND_Y) { c.leaving = true; c.vx = (c.x < GW / 2 ? -1 : 1) * 5; } // 퇴장: 가까운 쪽으로 달려 나감
+    if (c.leaving) { c.x += c.vx; c.side = c.vx > 0 ? 0 : 1; if (c.x < -40 || c.x > GW + 40) { crowd.splice(k, 1); const want = 2 + Math.floor(Math.random() * 2); while (crowd.length < want) crowd.push(newRunner(true)); } continue; } // 나가면 새 사람이 들어옴 (항상 2~3명)
+    if (--c.act <= 0) { // 다음 행동 랜덤: 달리기 · 잠깐 멈춤 · 점프 · 빙글 · 점프 스파이크
+      const r = Math.random();
+      if (r < 0.5) { c.vx = (Math.random() < 0.5 ? -1 : 1) * (2 + Math.random() * 4.5); c.act = 20 + Math.random() * 50; }
+      else if (r < 0.62) { c.vx = 0; c.act = 10 + Math.random() * 20; }
+      else if (r < 0.82 && c.y === P_GROUND_Y) { c.vy = -10 - Math.random() * 6; c.state = JUMP; c.act = 10 + Math.random() * 25; }
+      else if (r < 0.91) { c.spin = 30; c.act = 30; }
+      else if (c.y === P_GROUND_Y) { c.vy = -16; c.state = JUMP; c.power = 18; c.act = 34; }
+    }
+    c.x += c.vx;
+    if ((c.x < 24 && c.vx < 0) || (c.x > GW - 24 && c.vx > 0)) c.vx = -c.vx;
+    if (c.vx) c.side = c.vx > 0 ? 0 : 1;
+    if (c.y < P_GROUND_Y || c.vy < 0) { c.y += c.vy; c.vy += 1; if (c.y >= P_GROUND_Y) { c.y = P_GROUND_Y; c.vy = 0; c.state = NORMAL; } }
+    if (c.power > 0) { c.power--; if (c.vy > -6 && c.vy < 4) c.state = POWER; else if (c.y < P_GROUND_Y) c.state = JUMP; }
+    if (c.spin > 0) c.spin--;
+  }
+}
+function drawCrowd() {
+  if (!crowd) makeCrowd();
+  for (const c of [...crowd].sort((a, b) => a.char - b.char)) {
+    shadow(c.x, 18 - Math.min(10, (P_GROUND_Y - c.y) / 10));
+    ctx.save(); ctx.translate(c.x, c.y);
+    if (c.spin > 0) ctx.scale(Math.cos(c.spin * 0.6) || 0.05, 1);
+    if (c.state === POWER) ctx.rotate((c.side === 0 ? 1 : -1) * 0.18);
+    drawFigure(c);
+    ctx.restore();
   }
 }
 
@@ -4535,7 +4588,8 @@ function draw() {
   drawCraters();
   drawGlyphs();
   drawNet();
-  if (state !== 'select') { players.forEach(drawMatrixField); players.forEach(drawPlayer); drawMatrixHits(); }
+  if (isMenu()) drawCrowd();
+  else if (state !== 'select') { players.forEach(drawMatrixField); players.forEach(drawPlayer); drawMatrixHits(); }
   if (state !== 'select' && state !== 'title') drawPartyField();
   if (!isMenu() && state !== 'select' && !(cine && cine.kind === 'history' && cine.t < HIST_FIRE) && !(cine && (cine.kind === 'kim' || cine.kind === 'gm' || cine.kind === 'jmw'))) drawBall();
   drawLiteParts();
@@ -4560,7 +4614,7 @@ function draw() {
   drawPopups();
 
   if (state === 'title' || state === 'startFadeOut') {
-    text('배구 대전', GW / 2, 82, 40);
+    text('동성 배구 대전', GW / 2, 82, 36);
     // 메뉴
     MENU.forEach((m, i) => {
       const y = 132 + i * 34, on = i === menuIdx;
