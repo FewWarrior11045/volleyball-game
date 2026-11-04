@@ -22,14 +22,14 @@ const CHARACTERS = [
     skillName: '거인화', desc: ['5초 동안 키가 3배!', '높은 공도 다 막는다'] },
   { name: '김지연', grade: 'RARE', type: 'sprite', img: 'assets/swim.png', w: 40, h: 68, skill: 'whirl',
     skillName: '회전 회오리', desc: ['3초 동안 2배로 커져서 회전!', '닿는 공을 엄청 세게 날림'] },
-  { name: '문경목', grade: 'LEGENDARY', type: 'sprite', img: 'assets/hair.png', w: 62, h: 54, skill: 'hairbeam',
+  { name: '문경목', grade: 'MYTHIC', type: 'sprite', img: 'assets/hair.png', w: 62, h: 54, skill: 'hairbeam',
     skillName: '탈모빔', desc: ['하늘에서 거대한 빔 발사!', '라운드 끝까지 상대 쪼그라듦'] },
   { name: '김민주', grade: 'LEGENDARY', type: 'sprite', img: 'assets/democracy.png', w: 34, h: 66, skill: 'democracy',
     eyes: [[0.385, 0.249], [0.581, 0.249]], // 사진 속 눈 위치 (가로, 세로 비율)
     skillName: '민주주의 제1장', desc: ['영역전개! 9명으로 분신했다가', '거대 지팡이로 공을 꽂아 넣음'] },
-  { name: '파티왕', grade: 'EPIC', type: 'face', img: 'assets/wonder.png', skill: 'party',
+  { name: '원더재원', grade: 'EPIC', type: 'face', img: 'assets/wonder.png', skill: 'party',
     skillName: '미러볼 파티', desc: ['미러볼 + 팬 10명 등장!', '6초 동안 팬들이 공을 대신 침'] },
-  { name: '역사왕', grade: 'EPIC', type: 'face', img: 'assets/dongwoo.png', skill: 'history',
+  { name: '역사왕', grade: 'LEGENDARY', type: 'face', img: 'assets/dongwoo.png', skill: 'history',
     skillName: '위인 강림', desc: ['랜덤 위인 빙의! (3종)', '명량해전·신의 한 서브·해례본'] },
 ];
 // 등급 색깔
