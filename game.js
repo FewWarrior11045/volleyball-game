@@ -14,17 +14,33 @@ const CONFIG = {
 // type 'sprite': 몸 전체 사진 (배경 지운 PNG)
 // skill: 'giant' = 키 2배 / null = 아직 없음
 const CHARACTERS = [
-  { name: '무표정맨', type: 'face', img: 'assets/face1.png', skill: null,
+  { name: '무표정맨', grade: 'COMMON', type: 'face', img: 'assets/face1.png', skill: null,
     skillName: '???', desc: ['특수능력 준비 중'] },
-  { name: '스마일맨', type: 'face', img: 'assets/face2.png', skill: null,
+  { name: '스마일맨', grade: 'COMMON', type: 'face', img: 'assets/face2.png', skill: null,
     skillName: '???', desc: ['특수능력 준비 중'] },
-  { name: '키다리', type: 'sprite', img: 'assets/tall.png', w: 30, h: 70, skill: 'giant',
-    skillName: '거인화', desc: ['5초 동안 키가 2배!', '높은 공도 다 막는다'] },
-  { name: '허우적맨', type: 'sprite', img: 'assets/swim.png', w: 40, h: 68, skill: 'whirl',
-    skillName: '회전 회오리', desc: ['3초 동안 팽이처럼 회전!', '닿는 공을 세게 날려버림'] },
+  { name: '키다리', grade: 'EPIC', type: 'sprite', img: 'assets/tall.png', w: 30, h: 70, skill: 'giant',
+    skillName: '거인화', desc: ['5초 동안 키가 3배!', '높은 공도 다 막는다'] },
+  { name: '허우적맨', grade: 'RARE', type: 'sprite', img: 'assets/swim.png', w: 40, h: 68, skill: 'whirl',
+    skillName: '회전 회오리', desc: ['3초 동안 2배로 커져서 회전!', '닿는 공을 엄청 세게 날림'] },
+  { name: '문경목', grade: 'LEGENDARY', type: 'sprite', img: 'assets/hair.png', w: 62, h: 54, skill: 'hairbeam',
+    skillName: '탈모빔', desc: ['하늘에서 거대한 빔 발사!', '그 라운드 끝까지 상대가 쪼그라듦'] },
+  { name: '촛불 마스터', grade: 'LEGENDARY', type: 'sprite', img: 'assets/democracy.png', w: 34, h: 66, skill: 'democracy',
+    eyes: [[0.385, 0.249], [0.581, 0.249]], // 사진 속 눈 위치 (가로, 세로 비율)
+    skillName: '민주주의 제1장', desc: ['영역전개! 9명으로 분신했다가', '거대 지팡이로 공을 꽂아 넣음'] },
 ];
+// 등급 색깔
+const GRADE_COLOR = { COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f' };
+
 // 스킬 시간 (25프레임 = 1초)
-const SKILL_FRAMES = { giant: 125, whirl: 75 };
+const SKILL_FRAMES = { giant: 125, whirl: 75, hairbeam: 125, democracy: 8 };
+const DEMO_FRAMES = 80;    // 민주주의 영역전개 연출 길이 (3.2초, 모든 게 슬로우)
+const DEMO_HIT = 74;       // 지팡이가 공을 치는 순간
+const SHRINK = 0.4;        // 탈모빔 맞은 상대 크기
+const BEAM_FRAMES = 45;    // 탈모빔 연출 길이 (슈퍼 슬로모션)
+const BEAM_HIT = 14;       // 빔이 땅에 닿는 순간
+const INTRO_FRAMES = 50;   // 빔 쏘기 전 컷인 애니메이션 (2초, 경기 멈춤)
+// 스킬 중 크기 배율 [가로, 세로] (히트박스도 같이 커짐)
+const SKILL_SIZE = { giant: [1, 3], whirl: [2, 2] };
 
 // ===== 기본 값 (원작과 같은 432 x 304 크기로 계산, 화면엔 2배로 그림) =====
 const cv = document.getElementById('c');
@@ -80,7 +96,7 @@ function makePlayer(side) {
     x: 0, y: P_GROUND_Y, vy: 0, state: NORMAL,
     powerT: 0, diveDir: 0, lyingT: 0, collided: false, score: 0, anim: 0,
     char: side, picked: false,          // 고른 캐릭터
-    mana: 0, skillT: 0, skillMax: 1, hm: 1,          // 마나, 스킬 남은 시간, 키 배율
+    mana: 0, skillT: 0, skillMax: 1, hm: 1, hw: 1, shrinkT: 0,          // 마나, 스킬 남은 시간, 키 배율
     color: SIDE_COLOR[side],
   };
 }
@@ -88,7 +104,8 @@ const players = [makePlayer(0), makePlayer(1)];
 const ball = { x: 0, y: 0, vx: 0, vy: 0, rot: 0, power: false, trail: [] };
 const effects = [], popups = [];
 let state = 'title', timer = 0, lastScorer = 0, winner = -1;
-let fade = 0, slowTick = 0; // fade: 0 = 밝음, 1 = 완전 검정
+let fade = 0, slowTick = 0;
+let cine = null; // 탈모빔 연출 { t, caster, target } // fade: 0 = 밝음, 1 = 완전 검정
 
 function readInput(p) {
   const k = p.keys;
@@ -102,15 +119,21 @@ function readInput(p) {
 
 function resetRound(server) {
   players[0].x = 36; players[1].x = 396;
-  for (const p of players) Object.assign(p, { y: P_GROUND_Y, vy: 0, state: NORMAL, powerT: 0, lyingT: 0, collided: false });
-  Object.assign(ball, { x: server === 0 ? LEFT_SERVE_X : RIGHT_SERVE_X, y: 0, vx: 0, vy: 1, power: false, trail: [] });
+  for (const p of players) {
+    Object.assign(p, { y: P_GROUND_Y, vy: 0, state: NORMAL, powerT: 0, lyingT: 0, collided: false });
+    // 탈모빔은 라운드 끝나면 사라짐 (시간 상관없이)
+    p.shrinkT = 0;
+    if (CHARACTERS[p.char].skill === 'hairbeam') p.skillT = 0;
+  }
+  Object.assign(ball, { x: server === 0 ? LEFT_SERVE_X : RIGHT_SERVE_X, y: 0, vx: 0, vy: 1, power: false, unblockable: false, trail: [] });
   effects.length = 0;
   state = 'ready';
   timer = 0; // "Ready?" 30프레임(1.2초) 깜빡이며 화면 밝아짐
 }
 
 function newGame() {
-  for (const p of players) Object.assign(p, { score: 0, mana: 0, skillT: 0, hm: 1 });
+  for (const p of players) Object.assign(p, { score: 0, mana: 0, skillT: 0, hm: 1, hw: 1, shrinkT: 0 });
+  cine = null;
   winner = -1;
   popups.length = 0;
   resetRound(0);
@@ -130,12 +153,21 @@ function updatePlayer(p, inp) {
   if (inp.skill && ch.skill && p.mana >= CONFIG.MANA_MAX && p.skillT === 0 && p.state !== WIN && p.state !== LOSE) {
     p.mana = 0;
     p.skillT = p.skillMax = SKILL_FRAMES[ch.skill];
+    if (ch.skill === 'hairbeam') cine = { kind: 'hairbeam', intro: 0, t: 0, caster: p, target: players[1 - p.side] };
+    if (ch.skill === 'democracy') {
+      const candles = [];
+      for (let i = 0; i < 70; i++) candles.push({ x: Math.random() * GW, y: 20 + Math.random() * 270, d: Math.random() * 14, s: 0.6 + Math.random() * 0.8, f: Math.random() * 6 });
+      cine = { kind: 'democracy', t: 0, caster: p, target: players[1 - p.side], candles };
+    }
     popups.push({ text: ch.skillName + '!', x: p.x, y: 120, t: 30, color: p.color });
   }
   if (p.skillT > 0) p.skillT--;
-  const target = p.skillT > 0 && ch.skill === 'giant' ? 2 : 1;
-  p.hm += (target - p.hm) * 0.35;
-  if (Math.abs(target - p.hm) < 0.01) p.hm = target;
+  let [tw, th] = p.skillT > 0 && SKILL_SIZE[ch.skill] ? SKILL_SIZE[ch.skill] : [1, 1];
+  if (p.shrinkT > 0) { p.shrinkT--; tw *= SHRINK; th *= SHRINK; }
+  p.hm += (th - p.hm) * 0.35;
+  if (Math.abs(th - p.hm) < 0.01) p.hm = th;
+  p.hw += (tw - p.hw) * 0.35;
+  if (Math.abs(tw - p.hw) < 0.01) p.hw = tw;
 
   if (p.state === WIN || p.state === LOSE) return;
   if (p.state === LYING) { if (--p.lyingT <= 0) p.state = NORMAL; return; }
@@ -182,6 +214,7 @@ function updateBall() {
     ball.y = BALL_GROUND_Y;
     ball.vy = -ball.vy;
     ball.power = false;
+    ball.unblockable = false;
     effects.push({ x: ball.x, y: BALL_GROUND_Y + 20, t: 8 });
     return true;
   }
@@ -197,8 +230,8 @@ function updateBall() {
 function hitBall(p, inp) {
   // 회전 회오리 중: 닿는 공을 상대 쪽으로 세게 날림
   if (p.skillT > 0 && CHARACTERS[p.char].skill === 'whirl') {
-    ball.vx = (ball.x < NET_X ? 1 : -1) * 22;
-    ball.vy = -14;
+    ball.vx = (ball.x < NET_X ? 1 : -1) * 37; // 22 x 1.7
+    ball.vy = -24;                             // -14 x 1.7
     ball.power = true;
     effects.push({ x: ball.x, y: ball.y, t: 8 });
     return;
@@ -227,8 +260,9 @@ function hitBall(p, inp) {
 function hitTop(p) { return p.y - P_HALF - (p.hm - 1) * P_HALF * 2; }
 
 function checkCollisions(inputs) {
+  if (ball.unblockable) return; // 지팡이로 꽂은 공은 못 막음
   for (const p of players) {
-    const touching = Math.abs(ball.x - p.x) <= P_HALF && ball.y >= hitTop(p) && ball.y <= p.y + P_HALF;
+    const touching = Math.abs(ball.x - p.x) <= P_HALF * p.hw && ball.y >= hitTop(p) && ball.y <= p.y + P_HALF;
     if (touching) {
       if (!p.collided) { hitBall(p, inputs[p.side]); p.collided = true; }
     } else p.collided = false;
@@ -242,6 +276,7 @@ function step(scoring) {
   players.forEach((p, i) => updatePlayer(p, inputs[i]));
   checkCollisions(inputs);
   if (touched && scoring) {
+    cine = null;
     lastScorer = ball.x < NET_X ? 1 : 0;
     players[lastScorer].score++;
     if (players[lastScorer].score >= CONFIG.WIN_SCORE) {
@@ -256,6 +291,294 @@ function step(scoring) {
       timer = 0; slowTick = 0;
     }
   }
+}
+
+// ----- 민주주의 제1장 (영역전개) -----
+const STAFF_LEN = 210, STAFF_END = 0.5; // 지팡이 길이, 칠 때 각도
+
+function staffPivot(c) { return { x: c.x, y: c.y + 20 }; }
+
+function democracyHit(c) {
+  const s = c.side === 0 ? 1 : -1, pv = staffPivot(c);
+  // 지팡이 끝에서 공을 쳐서 상대 코트로 꽂아 넣음
+  ball.x = pv.x + s * Math.sin(STAFF_END) * STAFF_LEN;
+  ball.y = pv.y - Math.cos(STAFF_END) * STAFF_LEN;
+  const tx = s > 0 ? 290 + Math.random() * 100 : 42 + Math.random() * 100;
+  ball.vx = (tx - ball.x) / 5;
+  ball.vy = (BALL_GROUND_Y - ball.y) / 5 - 2;
+  ball.power = true;
+  ball.unblockable = true;
+  ball.trail = [];
+  effects.push({ x: ball.x, y: ball.y, t: 8 });
+}
+
+function drawCandle(x, y, sc, t, f) {
+  ctx.fillStyle = '#f3ead2';
+  ctx.fillRect(x - 2.5 * sc, y, 5 * sc, 12 * sc);
+  const fl = 1 + Math.sin(t * 1.3 + f) * 0.2;
+  const g = ctx.createRadialGradient(x, y - 4 * sc, 0, x, y - 4 * sc, 12 * sc);
+  g.addColorStop(0, 'rgba(255,220,120,.55)'); g.addColorStop(1, 'rgba(255,200,80,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - 4 * sc, 12 * sc, 0, 7); ctx.fill();
+  ctx.fillStyle = '#ffb02e';
+  ctx.beginPath(); ctx.ellipse(x, y - 4 * sc * fl, 2.2 * sc, 4.5 * sc * fl, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff6c8';
+  ctx.beginPath(); ctx.ellipse(x, y - 3 * sc * fl, 1 * sc, 2.4 * sc * fl, 0, 0, 7); ctx.fill();
+}
+
+// 보라·노랑 원들이 빙글빙글 도는 영역
+function drawDomainCircles(cx, cy, t, k) {
+  ctx.save();
+  ctx.globalAlpha = k;
+  const grow = Math.min(1, (t - 10) / 12);
+  const rings = [
+    { r: 150, c: '#9b4dff', w: 3, sp: 0.04, dash: [14, 8] },
+    { r: 122, c: '#ffd84d', w: 2, sp: -0.06, dash: [4, 6] },
+    { r: 96, c: '#c58bff', w: 4, sp: 0.08, dash: [30, 10] },
+    { r: 70, c: '#ffd84d', w: 2, sp: -0.1, dash: [] },
+    { r: 46, c: '#9b4dff', w: 3, sp: 0.14, dash: [8, 5] },
+  ];
+  for (const rg of rings) {
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(t * rg.sp);
+    ctx.strokeStyle = rg.c; ctx.lineWidth = rg.w; ctx.setLineDash(rg.dash);
+    ctx.shadowColor = rg.c; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(0, 0, rg.r * grow, 0, 7); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.setLineDash([]);
+  // 바큇살 + 점
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(-t * 0.03);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    ctx.strokeStyle = i % 2 ? 'rgba(255,216,77,.6)' : 'rgba(155,77,255,.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * 46 * grow, Math.sin(a) * 46 * grow); ctx.lineTo(Math.cos(a) * 150 * grow, Math.sin(a) * 150 * grow); ctx.stroke();
+    ctx.fillStyle = '#ffd84d';
+    ctx.beginPath(); ctx.arc(Math.cos(a) * 122 * grow, Math.sin(a) * 122 * grow, 3, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+  ctx.restore();
+}
+
+// 보라색 눈 불꽃
+function drawEyeFire(x, y, t, size) {
+  for (let i = 0; i < 5; i++) {
+    const h = size * (1.6 + Math.sin(t * 2 + i) * 0.4) * (1 - i * 0.12);
+    const ox = Math.sin(t * 3 + i * 1.7) * size * 0.25;
+    const g = ctx.createLinearGradient(x, y, x, y - h);
+    g.addColorStop(0, 'rgba(240,220,255,.95)');
+    g.addColorStop(0.4, 'rgba(170,80,255,.85)');
+    g.addColorStop(1, 'rgba(90,0,180,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x - size * 0.45, y);
+    ctx.quadraticCurveTo(x + ox - size * 0.3, y - h * 0.5, x + ox, y - h);
+    ctx.quadraticCurveTo(x + ox + size * 0.3, y - h * 0.5, x + size * 0.45, y);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x, y, size * 0.22, 0, 7); ctx.fill();
+}
+
+function drawStaff(c, t) {
+  const s = c.side === 0 ? 1 : -1, pv = staffPivot(c);
+  // DEMO_HIT 직전 8프레임 동안 뒤에서 앞으로 휘두름
+  const p = Math.min(1, Math.max(0, (t - (DEMO_HIT - 8)) / 8));
+  const ease = p * p;
+  const ang = s * (STAFF_END - 2.6 * (1 - ease));
+  const tipX = pv.x + Math.sin(ang) * STAFF_LEN, tipY = pv.y - Math.cos(ang) * STAFF_LEN;
+  // 휘두른 자국
+  if (p > 0 && p < 1 || (t >= DEMO_HIT && t < DEMO_HIT + 4)) {
+    ctx.strokeStyle = 'rgba(200,140,255,.45)'; ctx.lineWidth = 14;
+    ctx.beginPath();
+    const a0 = -Math.PI / 2 + s * (STAFF_END - 2.6), a1 = -Math.PI / 2 + ang;
+    ctx.arc(pv.x, pv.y, STAFF_LEN - 6, Math.min(a0, a1), Math.max(a0, a1)); ctx.stroke();
+  }
+  // 막대
+  ctx.save();
+  ctx.shadowColor = '#c58bff'; ctx.shadowBlur = 10;
+  ctx.strokeStyle = '#6b3b12'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(pv.x, pv.y); ctx.lineTo(tipX, tipY); ctx.stroke();
+  ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(pv.x, pv.y); ctx.lineTo(tipX, tipY); ctx.stroke();
+  // 끝에 보라 구슬
+  const og = ctx.createRadialGradient(tipX, tipY, 2, tipX, tipY, 22);
+  og.addColorStop(0, '#ffffff'); og.addColorStop(0.35, '#c58bff'); og.addColorStop(1, 'rgba(110,30,200,0)');
+  ctx.fillStyle = og; ctx.beginPath(); ctx.arc(tipX, tipY, 22, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function drawDomain() {
+  const t = cine.t, c = cine.caster, im = imgs['char' + c.char], ch = CHARACTERS[c.char];
+  const k = Math.min(1, t / 8) * (t > DEMO_FRAMES - 6 ? (DEMO_FRAMES - t) / 6 : 1);
+  const CX = GW / 2, CY = 150;
+  // 보라빛 어둠
+  const bg = ctx.createRadialGradient(CX, CY, 20, CX, CY, 300);
+  bg.addColorStop(0, `rgba(60,10,90,${0.75 * k})`); bg.addColorStop(1, `rgba(8,0,18,${0.88 * k})`);
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, GW, GH);
+  // 영역 원
+  if (t >= 10) drawDomainCircles(CX, CY, t, k);
+  // 촛불이 화면을 뒤덮음
+  ctx.save(); ctx.globalAlpha = k;
+  for (const cd of cine.candles) if (t >= cd.d) drawCandle(cd.x, cd.y, cd.s * Math.min(1, (t - cd.d) / 4), t, cd.f);
+  ctx.restore();
+  // 글자
+  if (t < 30) {
+    const sc = Math.min(1, (t + 1) / 6);
+    text('영역전개', CX, 70, 40 * sc, '#ffd84d');
+  }
+  if (t >= 14 && t < 50) {
+    text(ch.skillName, CX, 262, 20, '#e7c8ff');
+    text('— DEMOCRACY —', CX, 282, 11, '#ffd84d');
+  }
+  // 분신 9명이 빙글빙글 → 합쳐짐
+  if (im && t >= 30 && t < 56) {
+    const merge = t < 50 ? 1 : 1 - (t - 50) / 6;
+    const rad = 100 * merge;
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + (t - 30) * 0.3;
+      const x = CX + Math.cos(a) * rad, y = CY + Math.sin(a) * rad * 0.5;
+      const h = 70, w = h * im.width / im.height;
+      ctx.globalAlpha = 0.85 * k;
+      ctx.drawImage(im, x - w / 2, y - h / 2, w, h);
+    }
+    ctx.globalAlpha = 1;
+  }
+  // 합쳐진 큰 모습 + 눈에서 보라 불꽃
+  if (im && t >= 54 && t < 72) {
+    const grow = Math.min(1, (t - 54) / 4);
+    const h = 170 * grow, w = h * im.width / im.height;
+    const x0 = CX - w / 2, y0 = CY + 85 - h;
+    ctx.save();
+    if (Math.floor(t / 2) % 2) ctx.filter = 'brightness(1.3) saturate(1.3)';
+    ctx.drawImage(im, x0, y0, w, h);
+    ctx.restore();
+    if (t >= 58 && ch.eyes) for (const [ex, ey] of ch.eyes) drawEyeFire(x0 + ex * w, y0 + ey * h, t, 9);
+  }
+  if (t >= 54 && t < 57) { ctx.fillStyle = `rgba(230,200,255,${0.8 - (t - 54) * 0.25})`; ctx.fillRect(0, 0, GW, GH); }
+  // 거대 지팡이 등장 → 공을 쳐서 꽂음
+  if (t >= 66) drawStaff(c, t);
+  if (t >= DEMO_HIT && t < DEMO_HIT + 3) { ctx.fillStyle = `rgba(255,255,255,${0.7 - (t - DEMO_HIT) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
+  // 이 연출 중엔 공을 맨 위에 다시 그림
+  if (t >= DEMO_HIT) drawBall();
+}
+
+// ----- 탈모빔 컷인 (빔 쏘기 전 2초) -----
+function drawCutIn() {
+  const t = cine.intro, c = cine.caster;
+  const dir = c.side === 0 ? 1 : -1; // 시전자 쪽에서 들어옴
+  // 화면 어둡게
+  ctx.fillStyle = `rgba(5,0,20,${Math.min(0.75, t / 6)})`;
+  ctx.fillRect(0, 0, GW, GH);
+  // 시전자 쪽으로 빛이 모임
+  for (let i = 0; i < 10; i++) {
+    const a = i * 0.63 + t * 0.2, r = 70 - ((t * 4 + i * 13) % 70);
+    ctx.fillStyle = 'rgba(255,250,200,.9)';
+    ctx.beginPath(); ctx.arc(c.x + Math.cos(a) * r, c.y - 10 + Math.sin(a) * r, 1.8, 0, 7); ctx.fill();
+  }
+  // 띠가 옆에서 쓱 들어옴 (8프레임) → 머무름 → 나감 (마지막 6프레임)
+  let slide = 0;
+  if (t < 8) slide = (1 - t / 8) * GW * 1.2;
+  else if (t > INTRO_FRAMES - 6) slide = -((t - (INTRO_FRAMES - 6)) / 6) * GW * 1.2;
+  ctx.save();
+  ctx.translate(-dir * slide, 0);
+  ctx.beginPath();
+  ctx.moveTo(-20, 96); ctx.lineTo(GW + 20, 70); ctx.lineTo(GW + 20, 196); ctx.lineTo(-20, 222); ctx.closePath();
+  const g = ctx.createLinearGradient(0, 70, 0, 222);
+  g.addColorStop(0, '#ff9d00'); g.addColorStop(0.5, '#ffe14d'); g.addColorStop(1, '#ff6a00');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.save(); ctx.clip();
+  // 집중선 (빠르게 지나감)
+  ctx.strokeStyle = 'rgba(255,255,255,.75)';
+  for (let i = 0; i < 26; i++) {
+    const y = 70 + ((i * 37) % 152), len = 40 + ((i * 53) % 80);
+    const x = ((i * 97 - t * 38 * dir) % (GW + 200) + GW + 200) % (GW + 200) - 100;
+    ctx.lineWidth = 1 + (i % 3);
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y - len * 0.07); ctx.stroke();
+  }
+  // 캐릭터 크게 (천천히 줌인, 번쩍번쩍)
+  const im = imgs['char' + c.char];
+  if (im) {
+    const h = 112 + t * 0.35, w = h * im.width / im.height; // 천천히 줌인
+    const px = c.side === 0 ? 20 : GW - 20 - w;
+    const top = 240 - h;
+    if (Math.floor(t / 2) % 2 === 0) ctx.filter = 'brightness(1.5)';
+    ctx.drawImage(im, px, top, w, h);
+    ctx.filter = 'none';
+    // 이마가 빛남
+    if (t > 18) {
+      const fx = px + w * 0.55, fy = top + h * 0.2;
+      const r = 10 + (t - 18) * 1.4;
+      const fg = ctx.createRadialGradient(fx, fy, 1, fx, fy, r);
+      fg.addColorStop(0, 'rgba(255,255,255,1)'); fg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(fx, fy, r, 0, 7); ctx.fill();
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-20, 96); ctx.lineTo(GW + 20, 70); ctx.moveTo(-20, 222); ctx.lineTo(GW + 20, 196); ctx.stroke();
+  // 글자
+  const tx = c.side === 0 ? GW - 120 : 120;
+  text(CHARACTERS[c.char].name + '의 필살기', tx, 112, 12, '#fff');
+  const word = '탈모빔!!';
+  const n = t < 14 ? 0 : Math.min(word.length, Math.floor((t - 14) / 4) + 1);
+  if (n > 0) {
+    const shake = t > 30 ? (Math.random() - 0.5) * 3 : 0;
+    text(word.slice(0, n), tx + shake, 168 + shake, 40, '#ffffff');
+  }
+  ctx.restore();
+  // 마지막 번쩍
+  if (t >= INTRO_FRAMES - 4) {
+    ctx.fillStyle = `rgba(255,255,255,${(t - (INTRO_FRAMES - 4)) / 4})`;
+    ctx.fillRect(0, 0, GW, GH);
+  }
+}
+
+// ----- 탈모빔 연출 -----
+function drawBeam() {
+  if (!cine) return;
+  if (cine.kind === 'democracy') { drawDomain(); return; }
+  if (cine.intro < INTRO_FRAMES) { drawCutIn(); return; }
+  const t = cine.t, tx = cine.target.x;
+  // 화면 어둡게
+  const dim = t < 6 ? t / 6 : t > BEAM_FRAMES - 8 ? (BEAM_FRAMES - t) / 8 : 1;
+  ctx.fillStyle = `rgba(10,0,30,${0.45 * dim})`;
+  ctx.fillRect(0, 0, GW, GH);
+  // 빔: 위에서 내려와서 땅에 꽂힘
+  const bottom = t < BEAM_HIT ? 276 * (t / BEAM_HIT) : 276;
+  let wid = t < BEAM_HIT ? 26 : 70 + Math.sin(t * 1.7) * 10;
+  if (t > BEAM_FRAMES - 10) wid *= (BEAM_FRAMES - t) / 10;
+  if (wid > 0) {
+    const g = ctx.createLinearGradient(tx - wid, 0, tx + wid, 0);
+    g.addColorStop(0, 'rgba(120,200,255,0)');
+    g.addColorStop(0.25, 'rgba(120,200,255,.7)');
+    g.addColorStop(0.42, 'rgba(230,250,255,.95)');
+    g.addColorStop(0.5, '#ffffff');
+    g.addColorStop(0.58, 'rgba(230,250,255,.95)');
+    g.addColorStop(0.75, 'rgba(120,200,255,.7)');
+    g.addColorStop(1, 'rgba(120,200,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(tx - wid, 0, wid * 2, bottom);
+    // 지지직 번개
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.5;
+    for (let k = 0; k < 4; k++) {
+      ctx.beginPath();
+      let x = tx + (Math.random() - 0.5) * wid;
+      ctx.moveTo(x, 0);
+      for (let y = 0; y < bottom; y += 20) { x += (Math.random() - 0.5) * 14; ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
+  }
+  // 땅에 닿은 충격파
+  if (t >= BEAM_HIT) {
+    const k = t - BEAM_HIT;
+    ctx.strokeStyle = `rgba(200,240,255,${Math.max(0, 1 - k / 20)})`; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.ellipse(tx, 274, 20 + k * 6, 4 + k * 1.2, 0, 0, 7); ctx.stroke();
+    if (k < 3) { ctx.fillStyle = `rgba(255,255,255,${0.7 - k * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
+  }
+  // 글자 (덜덜 흔들림)
+  const sx = (Math.random() - 0.5) * 4, sy = (Math.random() - 0.5) * 4;
+  const sc = Math.min(1, (t + 1) / 6);
+  text('탈모빔!!!', GW / 2 + sx, 64 + sy, 42 * sc, '#fff6a0');
 }
 
 // ----- 캐릭터 선택 -----
@@ -280,7 +603,7 @@ function update() {
   if (state === 'title') {
     players.forEach((p) => p.anim++);
     if (powerPressed()) {
-      players.forEach((p) => { p.picked = false; p.state = NORMAL; p.hm = 1; p.skillT = 0; });
+      players.forEach((p) => { p.picked = false; p.state = NORMAL; p.hm = 1; p.hw = 1; p.skillT = 0; p.shrinkT = 0; });
       state = 'select'; timer = 0;
     }
   } else if (state === 'select') {
@@ -292,7 +615,23 @@ function update() {
     fade = Math.max(0, fade - 1 / 17);
     if (++timer >= 71) { fade = 0; state = 'play'; }
   } else if (state === 'play') {
-    step(true);
+    if (cine && cine.kind === 'democracy') {
+      // 영역전개: 모든 게 슬로우 (10프레임에 1번만 움직임)
+      cine.t++;
+      players.forEach((p) => p.anim++);
+      if (cine.t === DEMO_HIT) democracyHit(cine.caster);
+      if (cine.t % 10 === 0) step(true);
+      if (cine && cine.t >= DEMO_FRAMES) cine = null;
+    } else if (cine && cine.intro < INTRO_FRAMES) {
+      cine.intro++; // 컷인 애니메이션 중엔 경기 완전히 멈춤
+      players.forEach((p) => p.anim++);
+    } else if (cine) {
+      // 탈모빔: 경기가 슈퍼 슬로모션 (8프레임에 1번만 움직임)
+      cine.t++;
+      if (cine.t === BEAM_HIT) { cine.target.shrinkT = 999999; /* 라운드 끝날 때까지 */ effects.push({ x: cine.target.x, y: 270, t: 8 }); }
+      if (cine.t % 8 === 0) step(true);
+      if (cine && cine.t >= BEAM_FRAMES) cine = null;
+    } else step(true);
   } else if (state === 'slow') {
     if (++slowTick % 5 === 0) {
       step(false);
@@ -360,7 +699,7 @@ function drawFaceChar(p, faceImg) {
   const bob = st === NORMAL ? Math.sin(p.anim * 0.5) * 1.2 : st === WIN ? -Math.abs(Math.sin(p.anim * 0.4)) * 6 : 0;
   ctx.translate(0, bob);
   // 거인화: 발 기준으로 위로 늘림
-  if (p.hm !== 1) { ctx.translate(0, 32); ctx.scale(1, p.hm); ctx.translate(0, -32); }
+  if (p.hm !== 1 || p.hw !== 1) { ctx.translate(0, 32); ctx.scale(p.hw, p.hm); ctx.translate(0, -32); }
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#333'; ctx.lineWidth = 5;
   ctx.beginPath();
@@ -397,7 +736,7 @@ function drawFaceChar(p, faceImg) {
 function drawSpriteChar(p, im, ch) {
   const st = p.state;
   const bob = st === WIN ? -Math.abs(Math.sin(p.anim * 0.4)) * 6 : st === NORMAL ? Math.sin(p.anim * 0.5) * 0.8 : 0;
-  const h = ch.h * p.hm, w = ch.w;
+  const h = ch.h * p.hm, w = ch.w * p.hw;
   ctx.translate(0, bob);
   if (st === LOSE) { ctx.translate(0, 32); ctx.rotate(0.2); ctx.translate(0, -32); }
   if (im) {
@@ -429,17 +768,28 @@ function drawPlayer(p) {
   const whirl = p.skillT > 0 && CHARACTERS[p.char].skill === 'whirl';
   if (whirl) {
     // 팽이처럼 빙글빙글 (세로축 회전)
-    ctx.scale(Math.cos(p.anim * 1.4) || 0.05, 1);
+    ctx.scale(Math.cos(p.anim * 2.1) || 0.05, 1); // 회전 속도 1.5배
   }
   ctx.scale(face, 1);
+  const glow = p.skillT > 0 && CHARACTERS[p.char].skill === 'hairbeam';
+  if (glow) {
+    // 번쩍번쩍 빛나기
+    const on = Math.floor((cine ? cine.t : p.anim) / 2) % 2 === 0;
+    const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 60);
+    g.addColorStop(0, on ? 'rgba(255,255,220,.95)' : 'rgba(255,240,150,.6)');
+    g.addColorStop(1, 'rgba(255,240,150,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 60, 0, 7); ctx.fill();
+    if (on) ctx.filter = 'brightness(1.8)';
+  }
   drawFigure(p);
+  ctx.filter = 'none';
   ctx.restore();
   if (whirl) {
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 2;
-    for (let i = 0; i < 3; i++) {
-      const a = p.anim * 0.9 + i * 2.1, yy = p.y + 18 - i * 18;
-      ctx.beginPath(); ctx.ellipse(p.x, yy, 30 - i * 4, 6, 0, a, a + 3.6); ctx.stroke();
+    for (let i = 0; i < 4; i++) {
+      const a = p.anim * 1.35 + i * 2.1, yy = p.y + 18 - i * 18 * p.hm;
+      ctx.beginPath(); ctx.ellipse(p.x, yy, (30 - i * 4) * p.hw, 6 * p.hw, 0, a, a + 3.6); ctx.stroke();
     }
     ctx.restore();
   }
@@ -507,7 +857,7 @@ function drawMana(p) {
 function drawPopups() {
   for (const e of popups) {
     ctx.globalAlpha = Math.min(1, e.t / 8);
-    text(e.text, e.x, e.y - (30 - e.t) * 0.6, 18, e.color);
+    text(e.text, Math.max(70, Math.min(GW - 70, e.x)), e.y - (30 - e.t) * 0.6, 18, e.color);
     ctx.globalAlpha = 1;
   }
 }
@@ -520,17 +870,22 @@ function drawSelect() {
   const x0 = GW / 2 - (n * cw + (n - 1) * gap) / 2;
   CHARACTERS.forEach((c, i) => {
     const x = x0 + i * (cw + gap), y = 42;
+    const gc = GRADE_COLOR[c.grade] || '#fff';
     ctx.fillStyle = 'rgba(255,255,255,.15)';
     ctx.beginPath(); ctx.roundRect(x, y, cw, 70, 6); ctx.fill();
+    ctx.strokeStyle = gc; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(x + 1, y + 1, cw - 2, 68, 5); ctx.stroke();
     const im = imgs['char' + i];
     if (im && c.type === 'sprite') {
-      const h = 62, w = h * im.width / im.height;
-      ctx.drawImage(im, x + cw / 2 - w / 2, y + 4, w, h);
+      let h = 62, w = h * im.width / im.height;
+      if (w > cw - 6) { h *= (cw - 6) / w; w = cw - 6; } // 카드 안에 맞추기
+      ctx.drawImage(im, x + cw / 2 - w / 2, y + 62 - h + 4, w, h);
     } else if (im) {
       ctx.save(); ctx.beginPath(); ctx.arc(x + cw / 2, y + 30, 20, 0, 7); ctx.clip();
       ctx.drawImage(im, x + cw / 2 - 20, y + 10, 40, 40); ctx.restore();
     }
     text(c.name, x + cw / 2, y + 66, 8);
+    text(c.grade, x + cw / 2, y + 9, 6, gc);
     players.forEach((p) => {
       if (p.char !== i) return;
       const inset = p.side === 0 ? 0 : 3;
@@ -549,12 +904,13 @@ function drawSelect() {
     ctx.save();
     ctx.translate(cx - 50, 222);
     ctx.scale(1.3, 1.3);
-    const fake = { ...p, state: NORMAL, hm: 1 };
+    const fake = { ...p, state: NORMAL, hm: 1, hw: 1, skillT: 0 };
     ctx.scale(p.side === 0 ? 1 : -1, 1);
     drawFigure(fake);
     ctx.restore();
     const tx = cx - 10;
     text(c.name, tx, 148, 15, p.color, 'left');
+    text(c.grade, tx, 132, 9, GRADE_COLOR[c.grade], 'left');
     text('특수: ' + c.skillName, tx, 170, 11, '#fff3a0', 'left');
     c.desc.forEach((d, i) => text(d, tx, 188 + i * 15, 9, '#fff', 'left'));
     const keys = p.side === 0 ? 'D/G 고르기 · Z 선택' : '←/→ 고르기 · Enter 선택';
@@ -568,6 +924,7 @@ function draw() {
   drawNet();
   if (state !== 'select') players.forEach(drawPlayer);
   if (state !== 'title' && state !== 'startFadeOut' && state !== 'select') drawBall();
+  drawBeam();
   drawEffects();
 
   if (state === 'select') { drawSelect(); drawPopups(); return; }
