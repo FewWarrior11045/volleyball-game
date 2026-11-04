@@ -23,7 +23,7 @@ const CHARACTERS = [
   { name: '허우적맨', grade: 'RARE', type: 'sprite', img: 'assets/swim.png', w: 40, h: 68, skill: 'whirl',
     skillName: '회전 회오리', desc: ['3초 동안 2배로 커져서 회전!', '닿는 공을 엄청 세게 날림'] },
   { name: '문경목', grade: 'LEGENDARY', type: 'sprite', img: 'assets/hair.png', w: 62, h: 54, skill: 'hairbeam',
-    skillName: '탈모빔', desc: ['하늘에서 거대한 빔 발사!', '그 라운드 끝까지 상대가 쪼그라듦'] },
+    skillName: '탈모빔', desc: ['하늘에서 거대한 빔 발사!', '라운드 끝까지 상대 쪼그라듦'] },
   { name: '촛불 마스터', grade: 'LEGENDARY', type: 'sprite', img: 'assets/democracy.png', w: 34, h: 66, skill: 'democracy',
     eyes: [[0.385, 0.249], [0.581, 0.249]], // 사진 속 눈 위치 (가로, 세로 비율)
     skillName: '민주주의 제1장', desc: ['영역전개! 9명으로 분신했다가', '거대 지팡이로 공을 꽂아 넣음'] },
@@ -873,6 +873,21 @@ function drawSelect() {
     const gc = GRADE_COLOR[c.grade] || '#fff';
     ctx.fillStyle = 'rgba(255,255,255,.15)';
     ctx.beginPath(); ctx.roundRect(x, y, cw, 70, 6); ctx.fill();
+    // 고른 카드는 배경을 1P 파랑 / 2P 빨강으로 칠함 (둘 다 고르면 반반)
+    const on = players.filter((p) => p.char === i);
+    if (on.length) {
+      ctx.save();
+      ctx.beginPath(); ctx.roundRect(x, y, cw, 70, 6); ctx.clip();
+      on.forEach((p) => {
+        const half = on.length === 2;
+        const blink = p.picked && Math.floor(p.anim / 2) % 2;
+        ctx.fillStyle = p.side === 0
+          ? (blink ? 'rgba(120,180,255,.85)' : 'rgba(47,124,246,.6)')
+          : (blink ? 'rgba(255,140,130,.85)' : 'rgba(242,70,60,.6)');
+        ctx.fillRect(half && p.side === 1 ? x + cw / 2 : x, y, half ? cw / 2 : cw, 70);
+      });
+      ctx.restore();
+    }
     ctx.strokeStyle = gc; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(x + 1, y + 1, cw - 2, 68, 5); ctx.stroke();
     const im = imgs['char' + i];
@@ -888,10 +903,6 @@ function drawSelect() {
     text(c.grade, x + cw / 2, y + 9, 6, gc);
     players.forEach((p) => {
       if (p.char !== i) return;
-      const inset = p.side === 0 ? 0 : 3;
-      ctx.strokeStyle = p.color; ctx.lineWidth = 2.5;
-      if (p.picked && Math.floor(p.anim / 2) % 2) ctx.strokeStyle = '#fff';
-      ctx.beginPath(); ctx.roundRect(x - 2 + inset, y - 2 + inset, cw + 4 - inset * 2, 74 - inset * 2, 7); ctx.stroke();
       text(p.side === 0 ? '1P' : '2P', p.side === 0 ? x + 2 : x + cw - 2, y - 4, 9, p.color, p.side === 0 ? 'left' : 'right');
     });
   });
