@@ -138,7 +138,9 @@ function resetRound(server) {
     // 탈모빔은 라운드 끝나면 사라짐 (시간 상관없이)
     p.shrinkT = 0;
     if (CHARACTERS[p.char].skill === 'hairbeam') p.skillT = 0;
+    if (CHARACTERS[p.char].skill === 'democracy') p.skillT = 0; // 민주주의도 라운드 끝나면 해제
   }
+  cine = null; // 남아 있는 연출(영역전개·빔)도 정리
   Object.assign(ball, { x: server === 0 ? LEFT_SERVE_X : RIGHT_SERVE_X, y: 0, vx: 0, vy: 1, power: false, unblockable: false, trail: [] });
   effects.length = 0;
   state = 'ready';
