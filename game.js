@@ -8666,3 +8666,57 @@ function mobileSync() { // 상황에 맞게 버튼 보이기/숨기기
 { const baseD = draw; draw = function () { baseD(); if (!CERT_EXPORT) mobileSync(); }; }
 { const mv = document.querySelector('meta[name=viewport]'); if (mv) mv.content = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'; }
 document.body.style.touchAction = 'none'; document.body.style.userSelect = 'none'; document.body.style.webkitUserSelect = 'none';
+
+// ===== 시작 로딩 화면 (v7.3) — 검은 화면 'made by 경목' → 로딩 중... → 메인 화면 (약 3초) =====
+// 게임 상태는 안 바꾸고 화면 위에 덮어서 그림. 테스트 자동화(Playwright)에서는 건너뜀.
+const INTRO_MADE = 30, INTRO_END = 75;                 // 25FPS 기준: 1.2초 / 3초
+const INTRO_SQ = ['RARE', 'EPIC', 'MYTHIC', 'ULTRA', 'LEGENDARY', 'COMMON']; // 둘레 네모 색 = 등급 색
+const INTRO_TIPS = ['공중에서 공격 + 방향키 = 스파이크 방향이 바뀌어', '땅에서 공격 + 좌우 = 다이빙', '마나가 다 차면 스킬!', '등급이 높을수록 시네마틱이 화려해', '15점 먼저 내면 승리'];
+const INTRO = { t: navigator.webdriver ? INTRO_END : 0, tip: INTRO_TIPS[Math.floor(Math.random() * INTRO_TIPS.length)] };
+{ const baseU = update; update = function () {
+  if (INTRO.t < INTRO_END) { INTRO.t++; pressed.clear(); return; } // 로딩 중엔 입력 무시
+  baseU();
+}; }
+function drawIntro() {
+  const t = INTRO.t, c = ctx;
+  c.save(); c.setTransform(SCALE, 0, 0, SCALE, 0, 0); c.textAlign = 'center'; c.textBaseline = 'middle';
+  if (t < INTRO_MADE) { // ① 검은 화면 + made by 경목
+    c.fillStyle = '#000'; c.fillRect(0, 0, GW, GH);
+    c.globalAlpha = Math.max(0, Math.min(1, t / 8, (INTRO_MADE - t) / 6));
+    c.fillStyle = '#fff'; c.font = 'bold 22px "Malgun Gothic", sans-serif'; c.fillText('made by 경목', GW / 2, GH / 2);
+    c.restore(); return;
+  }
+  const k = t - INTRO_MADE, dur = INTRO_END - INTRO_MADE;
+  c.globalAlpha = Math.min(1, k / 5, (INTRO_END - t) / 6); // 들어올 때·나갈 때 페이드 (나갈 땐 메인 화면이 비쳐 보임)
+  // ② 배경: 밤하늘 + 도트 잔디·흙
+  const g = c.createLinearGradient(0, 0, 0, GH); g.addColorStop(0, '#0d1a33'); g.addColorStop(0.6, '#1d3557'); g.addColorStop(1, '#0a0a0a');
+  c.fillStyle = g; c.fillRect(0, 0, GW, GH);
+  for (let x = 0; x < GW; x += 8) { const h = (x * 37) % 3; c.fillStyle = '#2f6b2a'; c.fillRect(x, 232 + h * 2, 8, 8); c.fillStyle = '#5a3a1e'; c.fillRect(x, 240 + h * 2, 8, 64); c.fillStyle = '#4a2f18'; if ((x / 8) % 3 === 1) c.fillRect(x + 2, 254, 3, 3); }
+  const vg = c.createRadialGradient(GW / 2, GH / 2, 60, GW / 2, GH / 2, 260); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.7)');
+  c.fillStyle = vg; c.fillRect(0, 0, GW, GH);
+  // ③ 가운데 네모 + 둘레 등급 색 네모 (차례대로 반짝)
+  const cx = GW / 2, cy = 116, on = Math.floor(k / 3) % 6;
+  INTRO_SQ.forEach((gr, i) => {
+    const sx = cx + (i < 3 ? -58 : 58), sy = cy + ((i % 3) - 1) * 38, lit = i === on, s = lit ? 14 : 10;
+    c.fillStyle = GRADE_COLOR[gr]; if (lit) { c.shadowColor = GRADE_COLOR[gr]; c.shadowBlur = 12; }
+    c.fillRect(Math.round(sx - s / 2), Math.round(sy - s / 2), s, s); c.shadowBlur = 0;
+  });
+  c.fillStyle = '#000'; c.fillRect(cx - 34, cy - 34, 68, 68);
+  c.fillStyle = '#9a9a9a'; c.fillRect(cx - 30, cy - 30, 60, 60);
+  c.fillStyle = '#000'; c.fillRect(cx - 20, cy - 20, 40, 40);
+  const sp = Math.min(1, k / (dur - 6)); // 진행도 0 → 1
+  c.strokeStyle = GRADE_COLOR[INTRO_SQ[on]]; c.lineWidth = 2; c.strokeRect(cx - 18, cy - 18, 36, 36);
+  // 가운데: 도트 배구공이 통통 튀며 빙글
+  c.save(); c.translate(cx, cy + 2 - Math.abs(Math.sin(k * 0.35)) * 8); c.rotate(k * 0.3);
+  c.fillStyle = '#fff'; c.fillRect(-10, -10, 20, 20); c.fillStyle = '#ffd23f'; c.fillRect(-10, -3, 20, 6); c.fillStyle = '#3d8bff'; c.fillRect(-3, -10, 6, 20);
+  c.restore();
+  // ④ 로딩 중... + 진행 막대 + 팁
+  c.fillStyle = '#fff'; c.font = 'bold 13px "Malgun Gothic", sans-serif';
+  c.fillText('로딩 중' + '.'.repeat(1 + (Math.floor(k / 5) % 3)), cx, 182);
+  const bw = 160, bx = cx - bw / 2, by = 198;
+  c.fillStyle = '#000'; c.fillRect(bx - 2, by - 2, bw + 4, 10); c.fillStyle = '#333'; c.fillRect(bx, by, bw, 6);
+  for (let i = 0; i < Math.floor(sp * 16); i++) { c.fillStyle = i % 2 ? '#3ccf5a' : '#4fe36c'; c.fillRect(bx + i * 10, by, 10, 6); }
+  c.fillStyle = 'rgba(255,255,255,0.75)'; c.font = 'bold 9px "Malgun Gothic", sans-serif'; c.fillText('TIP · ' + INTRO.tip, cx, 222);
+  c.restore();
+}
+{ const baseD = draw; draw = function () { baseD(); if (INTRO.t < INTRO_END) drawIntro(); }; }
