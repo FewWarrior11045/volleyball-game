@@ -37,12 +37,14 @@ const CHARACTERS = [
     skillName: '선택적 기사도', desc: ['상대 성별 따라 인격 180° 변신!', '여자: 솜사탕 ♥ · 남자: 뚝배기 ☠'] },
   { name: '차명준', gender: 'm', grade: 'ULTRA', type: 'sprite', img: 'assets/cmj.png', w: 56, h: 60, skill: 'cmj', mana: 6,
     skillName: '시공간 커널 해킹', desc: ['랜덤 6초 시네마틱 7종! (마나 6칸)', '양자·E=mc²·404·AI·시간·BSOD·빅뱅'] },
+  { name: '김예안', gender: 'm', grade: 'LEGENDARY', type: 'sprite', img: 'assets/yean.png', w: 62, h: 46, skill: 'yean',
+    skillName: '기숙사 퇴사하기', desc: ['랜덤 6초 시네마틱 3종!', '욕설 폭격·벌점 25점 퇴사·160dB 샤우팅'] },
 ];
 // 등급 색깔
 const GRADE_COLOR = { POOP: '#9a6233', COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f', ULTRA: '#00ffd0' };
 
 // 스킬 시간 (25프레임 = 1초)
-const SKILL_FRAMES = { giant: 125, whirl: 250, hairbeam: 125, democracy: 8, meteor: 8, party: 225, history: 8, sock: 8, math: 8, kim: 8, gm: 8, jmw: 8, jjh: 8, cmj: 8 };
+const SKILL_FRAMES = { giant: 125, whirl: 250, hairbeam: 125, democracy: 8, meteor: 8, party: 225, history: 8, sock: 8, math: 8, kim: 8, gm: 8, jmw: 8, jjh: 8, cmj: 8, yean: 8 };
 const SOCK_REF = 26, SOCK_CARD = 42, SOCK_SPRAY = 54, SOCK_MINUS = 74, SOCK_END = 92; // 숙성 양말 서브: 심판 등장 / 레드카드 / 소독 / -1점 / 끝
 const PARTY_INTRO = 62; // 파티 시작 연출 (2.5초, 경기 멈춤)
 let party = null;       // { side, girls, cd } 파티 중인 쪽
@@ -303,6 +305,10 @@ function updatePlayer(p, inp) {
       const candles = [];
       for (let i = 0; i < 70; i++) candles.push({ x: Math.random() * GW, y: 20 + Math.random() * 270, d: Math.random() * 14, s: 0.6 + Math.random() * 0.8, f: Math.random() * 6 });
       cine = { kind: 'democracy', t: 0, caster: p, target: players[1 - p.side], candles, counter: Math.random() < (dictTest ? 1 : DICTATOR_CHANCE) };
+    }
+    if (ch.skill === 'yean') {
+      cine = { kind: 'yean', t: 0, caster: p, target: players[1 - p.side], sk: YA_SKILLS[Math.floor(Math.random() * YA_SKILLS.length)] };
+      sfx('whoosh');
     }
     if (ch.skill === 'cmj') {
       cine = { kind: 'cmj', t: 0, caster: p, target: players[1 - p.side], sk: CM_SKILLS[Math.floor(Math.random() * CM_SKILLS.length)] };
@@ -827,6 +833,7 @@ function cineCam() {
   if (cine.kind === 'lite') return liteCam(cine);
   if (cine.kind === 'jjh') return jjCam(cine);
   if (cine.kind === 'cmj') return cmCam(cine);
+  if (cine.kind === 'yean') return yaCam(cine);
   if (cine.kind === 'history') return cine.hero && cine.hero.key === 'gyebaek' ? histCam(cine) : withFollow(cine, histCam(cine), HIST_FIRE, HIST_HIT);
   return null;
 }
@@ -854,6 +861,7 @@ function drawCineUI() {
   if (cine.kind === 'lite') drawLiteUI(cine);
   if (cine.kind === 'jjh') drawJjhUI(cine);
   if (cine.kind === 'cmj') drawCmjUI(cine);
+  if (cine.kind === 'yean') drawYeanUI(cine);
   if (cine.kind === 'history') drawHistUI(cine);
 }
 
@@ -2000,6 +2008,181 @@ function drawFirewall(p) {
   ctx.restore();
 }
 
+// ===== 김예안 (LEGENDARY): 기숙사 생존 광기 — 6초 시네마틱 3종 =====
+const YA_A = 25, YA_B = 62, YA_C = 100, YA_FIRE = 125, YA_HIT = 150, YA_END = 172;
+const YA_SKILLS = [
+  { key: 'rage', title: '자치고 멸망: 야식 라면 & 찰진 욕설 폭격', en: 'Targeted Rage BEEP-Smash', col: '255,50,40',
+    lines: ['"밤마다 라면 처먹고 뒷담이나 까는 위선자 개★야!"', '"공이나 처맞아라!!" (BEEP-!)'] },
+  { key: 'evict', title: '자유의 의지: 벌점 25점 퇴사 통지서 스파이크', en: '25-Point Dorm Eviction Spike', col: '230,20,60',
+    lines: ['"벌점 25점 채웠다!!"', '"나 오늘부로 동성고 기숙사 퇴사다 이 빡통들아!!"'] },
+  { key: 'scream', title: '광란의 포효: 160dB 순수 샤우팅', en: '160dB Pure Acoustic Scream Drop', col: '255,230,60',
+    lines: ['"으아아아아아아아아아아악-!!!!!"', ''] },
+];
+const YA_TAUNT = {
+  start: ['오늘도 점호 걸리면 진짜 기숙사 엎어버린다.', '밤에 몰래 라면이나 처먹는 놈이 자치고라고 단속질이야?!', '오늘 니가 내 기숙사 퇴사원 싸인받는 날이다!'],
+  win: ['퇴사다! 건드리지 마라! 오늘부터 기숙사 안 들어간다!', '봤냐?! 벌점 25점 때리더니 꼴좋다! 나 짐 싸서 집 간다!'],
+  lose: ['노사한테 일러서 기숙사 통금이나 싹 다 바꿔버려야지...', '아 씨... 벌점 25점 채워서 퇴사당하는 게 차라리 낫겠다...'],
+  block: '어디서 벌점 수첩을 밀어 넣어?! 라면 국물이나 닦아라!',
+  error: '벌점 25점 처먹고 퇴사 처리나 해라!!',
+  miss: '아 빡치네! 기숙사에 끓여놓은 내 라면 불어터질까 봐 집중 깨졌잖아!',
+  serve: '이거 맞고 노사한테 가서 징징대봐라.',
+};
+function yaSource(c) { const P = c.caster, s = P.side === 0 ? 1 : -1; return c.sk.key === 'scream' ? { x: NET_X - s * 14, y: P.y - 30 } : { x: P.x + s * 26, y: P.y - 40 }; }
+
+function updateYean() {
+  const c = cine, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, t = ++c.t;
+  players.forEach((p) => p.anim++);
+  const [mn, mx] = T.side === 0 ? [44, 176] : [256, 388];
+  if (!c.init) { c.init = true; c.parts = []; c.x0 = P.x; c.tx = k === 'evict' ? (mn + mx) / 2 : Math.max(mn, Math.min(mx, T.x)); }
+  if (t <= 20) { const q = t / 20, e = 1 - (1 - q) * (1 - q); P.y = P_GROUND_Y - e * 90; if (k === 'scream') P.x = c.x0 + (NET_X - s * 40 - c.x0) * e; }
+  P.state = JUMP; P.vy = 0;
+  if (t === 1) sfx('whoosh');
+  if (k === 'rage' && t === YA_B + 4) { sfx('beep', 0.6); shake = 8; }
+  if (k === 'evict' && t === YA_A) sfx('spray');
+  if (k === 'evict' && t === YA_C) { sfx('thud'); shake = 6; }
+  if (k === 'scream' && t >= YA_B && t < YA_FIRE) { if (t % 4 === 0) shake = Math.max(shake, 7); if (t === YA_B) { sfx('buzz', 0.8); sfx('fail'); } }
+  // 파티클: 라면 면발 / 종이 칼날 / 음파
+  if (t > YA_A && t < YA_FIRE + 10) {
+    const b = yaSource(c);
+    if (k === 'rage' && t % 2 === 0) c.parts.push({ kind: 'ramen', x: P.x - s * 20 + (Math.random() - 0.5) * 40, y: P.y + 10, vx: (Math.random() - 0.5) * 1.5, vy: -1.5 - Math.random() * 2, t: 40, rot: Math.random() * 6 });
+    if (k === 'evict') for (let i = 0; i < 2; i++) { const an = Math.random() * 6.28, r = 40 + Math.random() * 60; c.parts.push({ kind: 'paper', a: an, r, cx: b.x, cy: b.y, t: 50, rot: Math.random() * 6 }); }
+    if (k === 'scream' && t > YA_B && t % 5 === 0) c.parts.push({ kind: 'wave', x: P.x, y: P.y - 20, r: 8, t: 36 });
+  }
+  for (const q of c.parts) {
+    q.t--; q.rot = (q.rot || 0) + 0.15;
+    if (q.kind === 'ramen') { q.x += q.vx; q.y += q.vy; }
+    if (q.kind === 'paper') { q.a += 0.18; q.r = Math.max(14, q.r - 0.8); q.cx = yaSource(c).x; q.cy = yaSource(c).y; }
+    if (q.kind === 'wave') q.r += 7;
+  }
+  c.parts = c.parts.filter((q) => q.t > 0);
+  if (t === YA_FIRE - 22) sfx('charge');
+  if (t === YA_FIRE - 1) { hitStop = 5; sfx('suck'); }
+  const src = yaSource(c);
+  if (t < YA_FIRE) { ball.x = src.x; ball.y = src.y; ball.vx = 0; ball.vy = 0; ball.rot += 0.3; }
+  if (t === YA_FIRE) {
+    heavy(src.x, src.y, k === 'scream' ? 1.0 : 2.6); sfx('flight', 1, 0.8);
+    if (k !== 'evict') {
+      ball.x = src.x; ball.y = src.y; P.state = JUMP; P.vy = 0;
+      if (k === 'rage') { releaseBall(Math.max(mn, Math.min(mx, T.x)), 8); T.freezeT = 16; T.lagT = 50; T.lagQ = []; T.confuseT = 50; T.confRev = true; T.confNext = 999; sfx('explode');
+        popups.push({ text: 'MENTAL BREAKDOWN! 2초 멘탈 붕괴', x: GW / 2, y: 168, t: 55, color: '#ff5040' }); }
+      else { T.slowT = 100; T.slowK = 0.1; T.freezeT = 8; ball.x = NET_X - s * 10; ball.y = Math.min(ball.y, 120); releaseBall(NET_X + s * 46, 16);
+        popups.push({ text: 'DEAFENED! 4초 반응속도 90% 둔화', x: GW / 2, y: 168, t: 55, color: '#ffe63c' }); }
+      cine = null; return;
+    }
+    T.mana = 0;
+  }
+  if (k === 'evict') {
+    if (t > YA_FIRE && t <= YA_HIT) moveHeroBall([src, { x: c.tx, y: BALL_GROUND_Y - 6 }], EASE.heavy((t - YA_FIRE) / (YA_HIT - YA_FIRE)), 30, '255,255,255');
+    if (t === YA_HIT) { heavy(c.tx, 262, 3.4); ball.squashT = 8; ball.fx = null; sfx('explode'); c.stamp = t; T.frozen = true; T.stunned = true; for (let i = 0; i < 40; i++) c.parts.push({ kind: 'shred', x: c.tx, y: 250, vx: (Math.random() - 0.5) * 10, vy: -2 - Math.random() * 7, t: 40, rot: Math.random() * 6 }); }
+    for (const q of c.parts) if (q.kind === 'shred') { q.x += q.vx; q.y += q.vy; q.vy += 0.25; }
+    if (t >= YA_END) { P.state = JUMP; P.vy = 0; ball.x = c.tx; ball.y = BALL_GROUND_Y - 4; ball.vx = 0; ball.vy = 8; ball.unblockable = true; ball.power = false; cine = null; }
+  }
+}
+
+function yaCam(c) {
+  const t = c.t, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, H = CAM_HOME;
+  if (!c.init) return H;
+  const face = { x: P.x, y: P_GROUND_Y - 90 + 14 }, close = { x: face.x, y: face.y, z: 3.6, r: 0 };
+  let keys;
+  if (k === 'rage') keys = [[0, H], [YA_A, { x: P.x + s * 30, y: 140, z: 1.3 }], [YA_B, { ...close, z: 4 }], [YA_B + 10, { x: T.x, y: T.y - 6, z: 3.6, r: s * 0.05 }], // 예안 → 상대로 초고속 패닝
+    [YA_C, { x: T.x, y: T.y - 6, z: 3.8, r: s * 0.05 }], [YA_C + 8, close], [YA_FIRE, { ...close, z: 4.2 }]];
+  else if (k === 'evict') keys = [[0, H], [YA_A, { x: P.x + s * 40, y: 120, z: 1.6, r: -s * 0.05 }], [YA_B, { x: (P.x + c.tx) / 2, y: 120, z: 1.3, r: s * 0.04 }], // 트래킹
+    [YA_C, { x: P.x + s * 26, y: P.y - 40, z: 2.4 }], [YA_C + 8, close], [YA_FIRE, { ...close, z: 3.9 }]];
+  else keys = [[0, H], [YA_A, { x: P.x, y: P.y - 10, z: 2.0, r: 0 }], [YA_B, { x: P.x, y: P.y - 10, z: 2.2, r: s * 0.8 }], // 360도 회전
+    [YA_C, { x: P.x, y: P.y - 10, z: 2.6, r: s * Math.PI * 2 }], [YA_C + 8, { ...close, r: s * Math.PI * 2 }], [YA_FIRE, { ...close, z: 4, r: s * Math.PI * 2 }]];
+  keys.push([YA_FIRE + 1, H], [YA_END, H]);
+  const cam = camKeys(t, keys);
+  if (k === 'evict') return withFollow(c, cam, YA_FIRE, YA_HIT);
+  return cam;
+}
+
+function drawRamen(x, y, sc, rot, a) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(sc, sc); ctx.globalAlpha = a;
+  ctx.fillStyle = '#d23a2a'; ctx.beginPath(); ctx.moveTo(-8, -2); ctx.lineTo(8, -2); ctx.lineTo(6, 6); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill(); // 컵
+  ctx.strokeStyle = '#ffd77a'; ctx.lineWidth = 1.2; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(i * 4, -2); ctx.quadraticCurveTo(i * 4 + 3, -7, i * 4, -11); ctx.stroke(); } // 면발
+  ctx.restore();
+}
+function drawYeanWorld() {
+  const c = cine, t = c.t, P = c.caster, T = c.target, sk = c.sk, s = P.side === 0 ? 1 : -1, key = sk.key;
+  if (!c.init) return;
+  const k = t > YA_END - 8 ? (YA_END - t) / 8 : Math.min(1, t / 8), a1 = Math.min(1, Math.max(0, (t - 6) / 18)), src = yaSource(c);
+  if (key === 'rage') {
+    const g = ctx.createRadialGradient(P.x, P.y - 20, 10, P.x, P.y - 20, 340); g.addColorStop(0, `rgba(120,0,0,${0.75 * k})`); g.addColorStop(1, `rgba(20,0,0,${0.92 * k})`);
+    ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
+    if (t >= YA_A) { // 락온 링
+      const lk = Math.min(1, (t - YA_A) / 10); ctx.save(); ctx.translate(T.x, T.y - 10); ctx.rotate(t * 0.1); ctx.strokeStyle = `rgba(255,40,40,${lk})`; ctx.lineWidth = 2.5; ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.arc(0, 0, 34 - lk * 6, 0, 5.6); ctx.stroke(); for (let i = 0; i < 4; i++) { ctx.rotate(1.57); ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(40, 0); ctx.stroke(); } ctx.restore();
+      text('TARGET LOCKED', T.x, T.y - 56, 9, '#ff5050');
+      ctx.font = 'bold 12px monospace'; ctx.fillStyle = `rgba(255,60,60,${0.7 * lk})`; ctx.textAlign = 'center'; for (let i = 0; i < 8; i++) ctx.fillText('!@#$%^&*'[i], P.x - s * 30 + Math.cos(i * 0.8 + t * 0.05) * 40, P.y - 50 + Math.sin(i * 0.8 + t * 0.05) * 30);
+      if (t >= YA_B) { const sy = T.y - 30; for (let i = 0; i < 4; i++) { ctx.fillStyle = 'rgba(140,200,255,.8)'; ctx.beginPath(); ctx.ellipse(T.x + 14 - i * 3, sy + ((t * 2 + i * 9) % 30), 1.5, 3, 0, 0, 7); ctx.fill(); } } // 식은땀
+    }
+    for (const q of c.parts) if (q.kind === 'ramen') drawRamen(q.x, q.y, 1.2, q.rot, Math.min(1, q.t / 12));
+    if (t >= YA_B && t < YA_B + 30) for (let i = 0; i < 3; i++) { const r = ((t - YA_B) * 8 + i * 30) % 220; ctx.strokeStyle = `rgba(255,40,40,${Math.max(0, 0.8 - r / 260)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(P.x, P.y - 10, r, 0, 7); ctx.stroke(); } // BEEP 음파
+  }
+  if (key === 'evict') {
+    const g = ctx.createLinearGradient(0, -100, 0, 300); g.addColorStop(0, `rgba(250,246,236,${0.9 * k})`); g.addColorStop(1, `rgba(225,215,195,${0.9 * k})`);
+    ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
+    ctx.save(); ctx.globalAlpha = 0.18 * a1; ctx.strokeStyle = '#7a6a50'; ctx.lineWidth = 0.6; for (let y = -40; y < 300; y += 12) { ctx.beginPath(); ctx.moveTo(-200, y); ctx.lineTo(640, y); ctx.stroke(); } ctx.restore(); // 공문서 줄
+    if (t >= YA_A && t < YA_C + 10) { // 퇴사 통지서
+      const q = Math.min(1, (t - YA_A) / 14);
+      ctx.save(); ctx.translate(P.x + s * 50, P.y - 70 - q * 20); ctx.rotate(-0.08 + Math.sin(t * 0.1) * 0.05); ctx.globalAlpha = q;
+      ctx.fillStyle = '#fffdf6'; ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.fillRect(-44, -56, 88, 112); ctx.strokeRect(-44, -56, 88, 112);
+      ctx.fillStyle = '#222'; ctx.textAlign = 'center'; ctx.font = 'bold 9px "Malgun Gothic", sans-serif'; ctx.fillText('기숙사 퇴사 통지서', 0, -38);
+      ctx.font = '7px "Malgun Gothic", sans-serif'; ['성명: 김예안', '누적 벌점: 25점', '사유: 점호 불참 외 다수', '처분: 강제 퇴사'].forEach((l, i) => ctx.fillText(l, 0, -18 + i * 12));
+      if (t >= YA_C) { const sq = Math.min(1, (t - YA_C) / 4), sc = 1 + (1 - sq) * 1.5; ctx.save(); ctx.translate(18, 34); ctx.scale(sc, sc); ctx.rotate(-0.25); ctx.globalAlpha = sq; ctx.strokeStyle = '#d40f3c'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, 16, 0, 7); ctx.stroke(); ctx.fillStyle = '#d40f3c'; ctx.font = 'bold 10px serif'; ctx.fillText('退舍', 0, 4); ctx.restore(); }
+      ctx.restore();
+    }
+    for (const q of c.parts) { // 종이 칼날 소용돌이 / 파쇄 조각
+      const x = q.kind === 'paper' ? q.cx + Math.cos(q.a) * q.r : q.x, y = q.kind === 'paper' ? q.cy + Math.sin(q.a) * q.r * 0.6 : q.y;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(q.rot); ctx.globalAlpha = Math.min(1, q.t / 10); ctx.fillStyle = '#ffffff'; ctx.strokeStyle = 'rgba(80,80,80,.5)'; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(-6, -2); ctx.lineTo(6, -1); ctx.lineTo(5, 2); ctx.lineTo(-6, 2); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+    }
+    if (c.stamp) { const q = Math.min(1, (t - c.stamp) / 5), sc = 1 + (1 - q) * 1.4;
+      ctx.save(); ctx.translate(c.tx, 270); ctx.scale(sc, sc * 0.34); ctx.strokeStyle = '#e0103c'; ctx.lineWidth = 5; ctx.shadowColor = '#ff2050'; ctx.shadowBlur = 12; ctx.strokeRect(-110, -40, 220, 80);
+      ctx.fillStyle = '#e0103c'; ctx.font = 'bold 34px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('벌점 25점 강제 퇴사', 0, 12); ctx.restore(); }
+  }
+  if (key === 'scream') {
+    const g = ctx.createRadialGradient(P.x, P.y - 20, 10, P.x, P.y - 20, 340); g.addColorStop(0, `rgba(80,60,0,${0.6 * k})`); g.addColorStop(1, `rgba(10,8,0,${0.9 * k})`);
+    ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
+    if (t < YA_B) { const q = Math.min(1, t / YA_B); for (let i = 0; i < 16; i++) { const an = i * 0.39, r = 140 * (1 - ((t * 0.04 + i * 0.13) % 1)); ctx.strokeStyle = `rgba(255,255,220,${0.35 * q})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(P.x + Math.cos(an) * r, P.y - 20 + Math.sin(an) * r); ctx.lineTo(P.x + Math.cos(an) * (r + 20), P.y - 20 + Math.sin(an) * (r + 20)); ctx.stroke(); } } // 공기 흡입
+    for (const q of c.parts) if (q.kind === 'wave') { ctx.strokeStyle = `rgba(255,230,60,${q.t / 36})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, 7); ctx.stroke(); ctx.strokeStyle = `rgba(255,255,255,${q.t / 60})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(q.x, q.y, q.r - 6, 0, 7); ctx.stroke(); }
+    if (t >= YA_B) { ctx.save(); ctx.globalAlpha = 0.9; floorText('160 dB', P.x + s * 70, 276, 34, '#ffe63c'); ctx.restore(); }
+  }
+  if (t > YA_FIRE - 22 && t < YA_FIRE) chargeFX(src.x, src.y, (t - (YA_FIRE - 22)) / 22, sk.col);
+  const gl = ctx.createRadialGradient(P.x, P.y - 14, 4, P.x, P.y - 14, 58); gl.addColorStop(0, `rgba(${sk.col},.5)`); gl.addColorStop(1, `rgba(${sk.col},0)`);
+  ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(P.x, P.y - 14, 58, 0, 7); ctx.fill();
+  ctx.save(); if (key === 'scream' && t >= YA_B && t < YA_FIRE) ctx.translate((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3); drawPlayer(P); ctx.restore();
+  if (key === 'rage' && t >= YA_B && t < YA_FIRE + 10) drawCensor(P.x + (P.side === 0 ? -6 : 6), P.y + 18, 30, t, '#$%@!');
+  if (key === 'scream' && t >= YA_B && t < YA_FIRE) { // 귀 막는 상대
+    ctx.save(); ctx.translate((Math.random() - 0.5) * 2, 0); drawPlayer(T); ctx.restore(); text('DEAFENED', T.x, T.y - 56, 9, '#ffe63c'); }
+  else drawPlayer(T);
+  if (T.stunned) for (let i = 0; i < 3; i++) { const an = t * 0.3 + i * 2.1; text('★', T.x + Math.cos(an) * 16, T.y - 46 + Math.sin(an) * 4, 9, '#ffe066'); }
+  if (t >= YA_A) drawBall();
+}
+
+function drawYeanUI(c) {
+  const t = c.t, sk = c.sk, key = sk.key;
+  if (!c.init) return;
+  const k = t > YA_END - 8 ? (YA_END - t) / 8 : Math.min(1, t / 8), dark = key === 'evict';
+  if (key === 'rage' && t >= YA_B + 4 && t < YA_B + 20) { ctx.save(); ctx.translate(GW - 70, 70); ctx.rotate(0.12); ctx.fillStyle = '#d0101a'; ctx.fillRect(-36, -14, 72, 24); text('BEEP-!', 0, 4, 14, '#fff'); ctx.restore(); }
+  if (key === 'scream' && t >= YA_B && t < YA_FIRE) { // 화면이 가로로 금 가며 쪼개짐
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 4; i++) { const y = 70 + i * 50; ctx.beginPath(); ctx.moveTo(0, y); for (let x = 0; x <= GW; x += 24) ctx.lineTo(x, y + Math.sin(x * 0.3 + i * 5) * 5); ctx.stroke(); }
+    if (t % 6 < 3) glitch(16);
+  }
+  if (key === 'evict' && c.stamp && t < c.stamp + 4) { ctx.fillStyle = `rgba(255,255,255,${0.8 - (t - c.stamp) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
+  ctx.save(); ctx.globalAlpha = Math.max(0, k);
+  text(sk.title, GW / 2, 22, 12, dark ? '#b00d33' : `rgb(${sk.col})`); text(sk.en, GW / 2, 34, 8, dark ? '#333' : '#fff');
+  if (t >= YA_C - 4 && t < YA_FIRE + 20) sk.lines.forEach((ln, i) => {
+    if (!ln) return;
+    const st = YA_C - 4 + i * 12, n = Math.max(0, Math.min(ln.length, Math.floor((t - st) * 1.6))); if (n <= 0) return;
+    const y = 262 + i * 17, big = key === 'scream'; ctx.font = `bold ${big ? 14 : i ? 10 : 11}px "Malgun Gothic", sans-serif`;
+    const w = ctx.measureText(ln).width + 16; ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(GW / 2 - w / 2, y - 13, w, big ? 20 : 16);
+    text(ln.slice(0, n), GW / 2, y + (big ? 2 : 0), big ? 14 : i ? 10 : 11, i ? '#ffffff' : `rgb(${sk.col})`);
+  });
+  ctx.restore();
+}
+
 // ----- 장민욱 (신화) 3초 시네마틱 3종 -----
 const JM_C1 = 20, JM_END = 75;
 const JM_SKILLS = [
@@ -2868,6 +3051,7 @@ function mathTaunt(kind, p) {
   if (sk === 'jmw') str = JM_TAUNT[kind];
   if (sk === 'gm') str = kind === 'error' && Math.random() < 0.5 ? GM_TAUNT.win : GM_TAUNT[kind];
   if (sk === 'jjh') { const v = JJ_TAUNT[isFem(players[1 - p.side]) ? 'f' : 'm'][kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
+  if (sk === 'yean') { const v = YA_TAUNT[kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
   if (sk === 'cmj') {
     const o = players[1 - p.side], vs = CM_VS[CHARACTERS[o.char].skill];
     if (vs && (kind === 'start' || kind === 'win') && vs[kind]) str = vs[kind];
@@ -4513,6 +4697,7 @@ function drawBeam() {
   if (cine.kind === 'lite') { drawLiteWorld(); return; }
   if (cine.kind === 'jjh') { drawJjhWorld(); return; }
   if (cine.kind === 'cmj') { drawCmjWorld(); return; }
+  if (cine.kind === 'yean') { drawYeanWorld(); return; }
   if (cine.intro < INTRO_FRAMES) { drawCutIn(); return; }
   const t = cine.t, tx = cine.target.x;
   // 화면 어둡게
@@ -4656,7 +4841,9 @@ function update() {
     fade = Math.max(0, fade - 1 / 17);
     if (++timer >= 71) { fade = 0; state = 'play'; }
   } else if (state === 'play') {
-    if (cine && cine.kind === 'cmj') {
+    if (cine && cine.kind === 'yean') {
+      updateYean();
+    } else if (cine && cine.kind === 'cmj') {
       updateCmj();
     } else if (cine && cine.kind === 'jjh') {
       updateJjh();
@@ -5180,7 +5367,7 @@ function draw() {
   if (isMenu()) drawCrowd();
   else if (state !== 'select') { players.forEach(drawMatrixField); players.forEach(drawPlayer); drawMatrixHits(); }
   if (state !== 'select' && state !== 'title') drawPartyField();
-  if (!isMenu() && state !== 'select' && !(cine && cine.kind === 'history' && cine.t < HIST_FIRE) && !(cine && (cine.kind === 'kim' || cine.kind === 'gm' || cine.kind === 'jmw' || cine.kind === 'jjh' || cine.kind === 'cmj'))) drawBall();
+  if (!isMenu() && state !== 'select' && !(cine && cine.kind === 'history' && cine.t < HIST_FIRE) && !(cine && (cine.kind === 'kim' || cine.kind === 'gm' || cine.kind === 'jmw' || cine.kind === 'jjh' || cine.kind === 'cmj' || cine.kind === 'yean'))) drawBall();
   drawLiteParts();
   drawFakes(); drawStrikes();
   drawBeam();
