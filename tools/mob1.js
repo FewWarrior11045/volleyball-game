@@ -1,0 +1,41 @@
+// (HANDOFF §17) 클릭/터치 + 모바일 조작 테스트 (iPhone 가로 화면 흉내)
+const { chromium, devices } = require('playwright');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+(async () => {
+  const b = await chromium.launch();
+  const ctxm = await b.newContext({ ...devices['iPhone 13 landscape'], acceptDownloads: true });
+  const pg = await ctxm.newPage();
+  const errs = []; pg.on('pageerror', (e) => errs.push(e.message + ' ' + (e.stack || '').split('\n')[1]));
+  await pg.goto('file:///home/claude/tools/p.html'); await sleep(600);
+  const box = await pg.locator('#c').boundingBox();
+  const tapW = async (x, y) => { await pg.touchscreen.tap(box.x + x / 432 * box.width, box.y + y / 304 * box.height); await sleep(350); };
+  const st = () => pg.evaluate(() => state + ' mob=' + MOBILE.on + MOBILE.layout);
+  await tapW(216, 114 + 5 * 26 - 6); console.log('1', await st()); await pg.screenshot({ path: 'm_setup.png' });
+  await tapW(310, 140); console.log('2', await st()); await pg.screenshot({ path: 'm_title.png' });
+  await tapW(216, 114 + 26 - 6); console.log('3 같이(막힘)', await st());
+  await tapW(216, 114 - 6); console.log('4 혼자', await st());
+  await tapW(124, 170); console.log('5 왼쪽', await st());
+  await tapW(216, 124 + 72 - 6); console.log('6 어려움', await pg.evaluate(() => state + ' lv' + aiLevel));
+  const [x, y, w, h] = await pg.evaluate(() => selCardRect(10));
+  await tapW(x + w / 2, y + h / 2); await sleep(1200); console.log('7 card', await pg.evaluate(() => players[humanSide].char));
+  await tapW(x + w / 2, y + h / 2); await sleep(500); console.log('8 confirm', await pg.evaluate(() => [players[humanSide].picked, state].join()));
+  const [x2, y2, w2, h2] = await pg.evaluate(() => selCardRect(4));
+  await tapW(x2 + w2 / 2, y2 + h2 / 2); await sleep(1500); await tapW(x2 + w2 / 2, y2 + h2 / 2); await sleep(500);
+  console.log('9 AI', await pg.evaluate(() => [CHARACTERS[players[1].char].name, players[1].picked, state].join()));
+  await sleep(5000); console.log('10', await st()); await pg.screenshot({ path: 'm_play.png' });
+  // 터치 버튼: ▶ 꾹 → 이동
+  const btn = async (role) => { const bb = await pg.locator(`[data-role="${role}"]`).first().boundingBox(); return [bb.x + bb.width / 2, bb.y + bb.height / 2]; };
+  const x0 = await pg.evaluate(() => players[0].x);
+  const [rx, ry] = await btn('r');
+  const cdp = await ctxm.newCDPSession(pg);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: rx, y: ry, id: 1 }] }); await sleep(600);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  console.log('11 move', Math.round(x0), '->', Math.round(await pg.evaluate(() => players[0].x)));
+  const [ux, uy] = await btn('u'); await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: ux, y: uy, id: 2 }] }); await sleep(120);
+  const yj = await pg.evaluate(() => players[0].y); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  console.log('12 jump y', Math.round(yj));
+  await pg.evaluate(() => (players[0].mana = manaMax(players[0])));
+  const [sx, sy] = await btn('s'); await pg.touchscreen.tap(sx, sy); await sleep(400); console.log('13 skill', await pg.evaluate(() => (cine ? cine.kind : '-')));
+  await pg.screenshot({ path: 'm_skill.png' });
+  console.log('errs', errs); await b.close();
+})();
