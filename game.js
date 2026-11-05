@@ -130,81 +130,110 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => down.delete(norm(e)));
 addEventListener('blur', () => down.clear());
 
-// ===== AI (혼자 플레이) =====
+// ===== AI (혼자 플레이) — 원작 물리를 그대로 머릿속에서 굴려 보고 움직임 =====
+// 공 물리 시뮬레이션 (updateBall과 똑같은 순서: 벽 → 천장 → 네트 → 바닥 → 이동 → 중력)
+function aiSim(b, n) {
+  const m = ballBoost * (ball.miniT > 0 ? 1.25 : 1), out = [];
+  let x = b.x, y = b.y, vx = b.vx, vy = b.vy;
+  for (let i = 0; i < n; i++) {
+    const fx = x + vx * m;
+    if (fx < BALL_R || fx > GW) vx = -vx;
+    if (y + vy * m < 0) vy = 1;
+    if (Math.abs(x - NET_X) < NET_HW && y > NET_TOP) { if (y <= NET_PILLAR_TOP) { if (vy > 0) vy = -vy; } else vx = x < NET_X ? -Math.abs(vx) : Math.abs(vx); }
+    if (y + vy * m > BALL_GROUND_Y) { out.push({ x, y: BALL_GROUND_Y, vx, vy, ground: true }); break; }
+    x += vx * m; y += vy * m; vy += m;
+    out.push({ x, y, vx, vy });
+  }
+  return out;
+}
+const aiLand = (path) => path[path.length - 1] || ball;
 function aiInput(p) {
-  const lv = p.aiLevel ?? aiLevel, L = AI_LEVELS[lv], s = p.side === 0 ? 1 : -1;
-  const ai = p.aiS || (p.aiS = { t: 0, tx: p.x, phase: '', attack: false, hit: null });
+  const lv = p.aiLevel ?? aiLevel, L = AI_LEVELS[lv], s = p.side === 0 ? 1 : -1, T = players[1 - p.side];
+  const ai = p.aiS || (p.aiS = { t: 0, tx: p.x, plan: null, err: 0 });
   const inp = { x: 0, y: 0, power: false, skill: false };
   if (state !== 'play' || cine) return inp;
   const mySide = (x) => (x < NET_X) === (p.side === 0);
-  const m = ballBoost * (ball.miniT > 0 ? 1.25 : 1);
-  const sim = (n) => { // 공의 n프레임 뒤 위치들
-    const out = []; let x = ball.x, y = ball.y, vx = ball.vx, vy = ball.vy;
-    for (let i = 0; i < n; i++) { if (x + vx * m < BALL_R || x + vx * m > GW) vx = -vx; if (y + vy * m < 0) vy = 1; x += vx * m; y += vy * m; vy += m; out.push({ x, y }); if (y > BALL_GROUND_Y) break; }
-    return out;
-  };
-  const serving = Math.abs(ball.vx) < 0.5 && Math.abs(ball.x - (p.side === 0 ? 36 : 396)) < 30 && mySide(ball.x);
-  // 공 상황: 넘어오는 센 공(in) / 내가 받아 올린 공(own) / 상대 쪽(away)
-  if (!mySide(ball.x) && !(ball.vx * s < 0)) ai.phase = 'away';
-  if (p.collided && mySide(ball.x) && ai.phase !== 'own') { ai.phase = 'own'; ai.attack = Math.random() < L.spike; ai.hit = null; }
-  else if (ai.phase !== 'own' && ai.phase !== 'in' && (mySide(ball.x) || ball.vx * s < 0)) {
-    ai.phase = 'in';
-    const fast = Math.abs(ball.vx) >= 9 || ball.vy > 9;
-    ai.attack = !fast && Math.random() < L.spike; // 느린 공은 바로 때림, 센 공은 일단 리시브
-  }
-  // 1) 예측 (난이도만큼 늦게 · 틀리게, 눈부시면 더 엉망)
+  const [mn, mx] = p.side === 0 ? [32, 184] : [248, 400];
+  const spd = 6 * (L.move || 1);
+  const serving = Math.abs(ball.vx) < 0.5 && Math.abs(ball.x - (p.side === 0 ? 36 : 396)) < 30 && mySide(ball.x) && ball.y < 200;
+  const path = aiSim(ball, 160);
+  // 판단은 난이도만큼 늦게 (어려움은 매 프레임)
   if (--ai.t <= 0) {
     ai.t = L.react + (p.blindT > 0 ? 12 : 0);
-    const path = sim(140), last = path[path.length - 1] || ball;
-    const err = (L.err + (p.blindT > 0 ? 100 : 0)) * (Math.random() - 0.5) * 2;
-    ai.land = last.x + err;
-    // 점프해서 만날 수 있는 지점 (점프 k프레임 뒤 내 높이 = 244 - 16k + k(k-1)/2)
-    ai.hit = null;
-    if (ai.attack && p.y === P_GROUND_Y) for (let k = 6; k < Math.min(26, path.length); k++) {
-      const py = P_GROUND_Y - 16 * k + (k * (k - 1)) / 2, b = path[k - 1];
-      if (mySide(b.x) && Math.abs(b.y - (py - 34)) < 22 && Math.abs(b.x - p.x) <= 6 * k + 12) { ai.hit = { x: b.x + err * 0.3, k }; break; }
+    ai.err = (L.err + (p.blindT > 0 ? 100 : 0)) * (Math.random() - 0.5) * 2;
+    ai.plan = null;
+    // ① 공격(점프 스파이크): k프레임 뒤 내 높이 = 244 - 16k + k(k-1)/2 에서 공을 만날 수 있나
+    const fastIn = !p.collided && (Math.abs(ball.vx) >= 12 || ball.vy > 12) && !mySide(ball.x);
+    if (!fastIn && Math.random() < L.spike && !(p.nojumpT > 0)) for (let k = 5; k <= 22 && k <= path.length; k++) {
+      const b = path[k - 1], py = P_GROUND_Y - 16 * k + (k * (k - 1)) / 2;
+      if (!mySide(b.x) || b.ground || Math.abs(b.x - NET_X) < NET_HW + 4) continue;
+      if (b.y < py - 42 || b.y > py - 2) continue;
+      if (path.slice(k - 1, k + 6).some((q) => !mySide(q.x))) continue; // 곧 넘어가 버릴 공은 쫓지 않음
+      const want = Math.max(mn, Math.min(mx, b.x - s * 10));
+      if (Math.abs(want - p.x) > spd * k + 4) continue;
+      ai.plan = { kind: 'spike', x: want, k };
+      break;
+    }
+    // ② 리시브: 공이 내 몸 높이(208)에 내려오는 순간의 위치에서, 맞는 자리(오프셋)를 골라 네트 너머 빈 곳으로
+    if (!ai.plan) {
+      const ci = path.findIndex((b) => mySide(b.x) && b.y >= P_GROUND_Y - P_HALF + 1); // 몸에 닿는 높이(212) 이상일 때부터 판정됨
+      if (ci >= 0) {
+        const cb = path[ci]; let best = null;
+        for (let off = -24; off <= 24; off += 2) {
+          const px = cb.x - off; if (px < mn || px > mx) continue;
+          const reach = Math.abs(px - p.x) <= spd * (ci + 1) + 2;
+          const vx = Math.sign(off) * Math.floor(Math.abs(off) / 3), vy = -Math.abs(cb.vy);
+          const after = aiSim({ x: cb.x, y: cb.y, vx, vy }, 160), land = aiLand(after);
+          const over = !mySide(land.x);
+          const apex = Math.min(...after.map((q) => q.y));
+          let score = over ? 200 + Math.abs(land.x - T.x) : (lv === 2 && apex < 150 && Math.abs(land.x - NET_X) < 120 ? 120 - Math.abs(land.x - (NET_X - s * 50)) : 0); // 못 넘기면 네트 앞으로 띄워 놓고 스파이크 각
+          if (!reach) score -= 1000 + Math.abs(px - p.x);
+          if (!best || score > best.score) best = { score, x: px };
+        }
+        if (best) ai.plan = { kind: 'recv', x: best.x };
+      } else { const ld = aiLand(path); ai.plan = { kind: 'home', x: mySide(ld.x) ? ld.x - s * 12 : (p.side === 0 ? 100 : 332) }; }
     }
   }
-  const [mn, mx] = p.side === 0 ? [32, 184] : [248, 400];
-  let tx;
-  if (serving) tx = ball.x - s * 6;
-  else if (!mySide(ai.land ?? ball.x)) tx = (p.side === 0 ? 100 : 332);          // 수비 위치로
-  else if (ai.attack && ai.hit) tx = ai.hit.x - s * 10;                               // 스파이크 자리
-  else if (ai.phase === 'in') tx = ai.land - s * (Math.abs(ball.vx) >= 9 ? 5 : 8);   // 센 공: 살짝 띄워서 받기 (내 쪽으로 올림)
-  else tx = ai.land - s * Math.min(26, 10 + Math.abs(ai.land - NET_X) / 9);          // 그냥 넘기기
+  // 이동
+  let tx = serving ? ball.x - s * 6 : ai.plan ? ai.plan.x + ai.err * (ai.plan.kind === 'home' ? 1 : 0.4) : p.x;
   tx = Math.max(mn, Math.min(mx, tx));
-  if (Math.abs(tx - p.x) > 3 && Math.random() < L.speed) inp.x = tx < p.x ? -1 : 1;
-  // 2) 점프: 서브 / 스파이크 타이밍
+  if (Math.abs(tx - p.x) > 2 && Math.random() < L.speed) inp.x = tx < p.x ? -1 : 1;
+  // 점프
   const dx = ball.x - p.x;
   if (p.state === NORMAL && p.y === P_GROUND_Y) {
     if (serving && ball.vy > 0 && ball.y > 40 && ball.y < 150 && Math.abs(dx) < 36) inp.y = -1;
-    else if (ai.attack && ai.hit && ai.hit.k <= 17 && Math.abs(ai.hit.x - s * 10 - p.x) < 6 * ai.hit.k + 8) inp.y = -1;
+    else if (ai.plan && ai.plan.kind === 'spike' && Math.abs(ai.plan.x - p.x) <= spd * 1.5 + 6) {
+      // 지금 뛰면 정확히 만나는지 다시 확인
+      for (let k = 5; k <= 22 && k <= path.length; k++) { const b = path[k - 1], py = P_GROUND_Y - 16 * k + (k * (k - 1)) / 2; if (mySide(b.x) && !b.ground && b.y >= py - 42 && b.y <= py - 2 && Math.abs(b.x - s * 10 - p.x) <= spd * k + 4 && !path.slice(k - 1, k + 6).some((q) => !mySide(q.x))) { inp.y = -1; break; } }
+    }
   }
-  // 3) 공중에서 때리기
-  if ((p.state === JUMP || p.state === POWER) && Math.abs(dx) < 46 && ball.y > p.y - 72 && ball.y < p.y + 14) {
-    if (p.state === JUMP) inp.power = true;
-    const T = players[1 - p.side];
-    inp.x = s;
-    if (serving || ai.serve != null) { ai.serve = ai.serve ?? Math.floor(Math.random() * 3); inp.y = ai.serve === 2 ? -1 : 0; return inp; }
-    if (lv === 2 || (lv === 1 && Math.random() < 0.5)) {
-      // 머릿속으로 6가지 스파이크를 다 쳐 보고, 상대한테서 제일 먼 곳에 떨어지는 걸 고름
+  // 공중: 공 쪽으로 몸 맞추고, 닿을 거리면 스파이크 (머릿속으로 쳐 보고 빈 곳 고르기)
+  if (p.state === JUMP || p.state === POWER) {
+    // 공중: 몇 프레임 뒤 공이 올 자리로 몸을 맞춤
+    let meet = -1;
+    for (let i = 0; i < 12 && i < path.length; i++) { const b = path[i], py = p.y + (p.vy + 1) * (i + 1) + (i * (i + 1)) / 2; if (mySide(b.x) && Math.abs(b.x - p.x) <= 32 + spd * (i + 1) && b.y >= py - 34 && b.y <= py + 30) { meet = i; break; } }
+    const aim = meet >= 0 ? path[meet].x - s * 10 : mySide(ball.x) ? ball.x - s * 10 : (p.side === 0 ? 100 : 332);
+    if (Math.abs(aim - p.x) > 2) inp.x = aim < p.x ? -1 : 1;
+    if (mySide(ball.x) && meet >= 0 && meet <= 3) { // 닿기 직전에만 스파이크 버튼 (너무 일찍 누르면 헛스윙)
+      if (p.state === JUMP) inp.power = true;
+      if (serving || ai.serve != null) { ai.serve = ai.serve ?? Math.floor(Math.random() * 3); if (meet <= 1) { inp.x = s; inp.y = ai.serve === 2 ? -1 : 0; } return inp; }
       let best = null;
-      for (const ix of [s, 0]) for (const iy of [-1, 0, 1]) {
-        let x = ball.x, y = ball.y, vx = s * (ix !== 0 ? 20 : 10), vy = Math.abs(ball.vy) * iy * 2, ok = true;
-        for (let i = 0; i < 90 && y < BALL_GROUND_Y; i++) { if (x + vx < BALL_R || x + vx > GW) vx = -vx; if (y + vy < 0) vy = 1; if (Math.abs(x - NET_X) < NET_HW + 2 && y > NET_TOP - 2) { ok = false; break; } x += vx; y += vy; vy += 1; }
-        if (!ok || mySide(x)) continue;
-        const score = Math.abs(x - T.x) + (iy === 1 ? 25 : 0) + (ix !== 0 ? 10 : 0); // 내리꽂기·강타 우대
+      const opts = lv >= 1 ? [[s, -1], [s, 0], [s, 1], [0, -1], [0, 0], [0, 1]] : [[s, 0], [s, 1]];
+      for (const [ix, iy] of opts) {
+        if (iy === 1 && Math.abs(ball.x - NET_X) > 70) continue; // 뒤에서 내리꽂으면 우리 코트에 박힘
+        let ok = true, after = null, land = null;
+        for (const c0 of [path[0] || ball, path[1] || ball, path[2] || ball]) { // 맞는 프레임이 조금 달라도 넘어가는지 확인
+          const tw = c0.x < NET_X ? 1 : -1, a2 = aiSim({ x: c0.x, y: c0.y, vx: tw * (ix !== 0 ? 20 : 10), vy: Math.abs(c0.vy) * iy * 2 }, 160), l2 = aiLand(a2);
+          if (mySide(l2.x)) { ok = false; break; } if (!after) { after = a2; land = l2; }
+        }
+        if (!ok) continue;
+        const score = Math.abs(land.x - T.x) + (iy === 1 ? 20 : 0) + (ix !== 0 ? 10 : 0) - after.length * (lv === 2 ? 1.2 : 0); // 어려움: 빨리 떨어지는 공 우대
         if (!best || score > best.score) best = { score, ix, iy };
       }
-      if (best) { inp.x = best.ix; inp.y = best.iy; } else inp.y = 0;
-    } else {
-      const near = Math.abs(p.x - NET_X) < 80;
-      inp.y = near ? (Math.random() < 0.6 ? 1 : 0) : (Math.random() < 0.3 ? -1 : 0);
+      if (meet <= 1) { if (best && (lv > 0 || Math.random() < 0.7)) { inp.x = best.ix; inp.y = best.iy; } else { inp.x = s; inp.y = -1; } } // 방향키는 닿는 순간에만 (그 전엔 계속 공 쪽으로 이동)
     }
   } else if (p.state === NORMAL) ai.serve = null;
-  // 4) 공중에선 공 쪽으로 몸 맞추기
-  if (p.state === JUMP && !serving) { const want = ball.x - s * 12; if (Math.abs(want - p.x) > 3) inp.x = want < p.x ? -1 : 1; }
-  // 5) 스킬
+  // 스킬
   if (p.mana >= manaMax(p) && p.skillT === 0) {
     if (lv === 2 ? !mySide(ball.x) && Math.random() < L.skill : Math.random() < L.skill) inp.skill = true;
   }
@@ -234,9 +263,9 @@ let state = 'title', timer = 0, lastScorer = 0, winner = -1;
 const MENU = ['혼자 플레이', '같이 플레이', '조작 방법'];
 // 혼자 플레이 (AI전)
 const AI_LEVELS = [
-  { name: '쉬움', react: 14, err: 44, spike: 0.15, skill: 0.01, speed: 0.7, col: '#7dff9a' },
-  { name: '보통', react: 5, err: 12, spike: 0.75, skill: 0.04, speed: 1, col: '#ffd84d' },
-  { name: '어려움', react: 2, err: 3, spike: 1, skill: 0.08, speed: 1, col: '#ff6a5a' },
+  { name: '쉬움', react: 14, err: 40, spike: 0.15, skill: 0.01, speed: 0.75, move: 1, col: '#7dff9a' },
+  { name: '보통', react: 5, err: 10, spike: 0.7, skill: 0.04, speed: 1, move: 1.1, col: '#ffd84d' },
+  { name: '어려움', react: 1, err: 0, spike: 1, skill: 0.08, speed: 1, move: 1.35, col: '#ff6a5a' },
 ];
 let solo = false, aiLevel = 1, humanSide = 0;
 const isMenu = () => ['title', 'howto', 'startFadeOut', 'side', 'diff'].includes(state);
@@ -403,7 +432,7 @@ function updatePlayer(p, inp) {
   const slow = (p.flat ? 0.5 : 1) * (p.fastT > 0 ? 1.5 : 1) * (p.slowT > 0 ? (p.slowK || 0.55) : 1); // 납작하면 이속 절반, 자유 버프면 1.5배
   if (p.pullT > 0) p.x += Math.sign(p.pullX - p.x) * Math.min(4.6, Math.abs(p.pullX - p.x)); // 특이점으로 끌려감
   if (p.state === DIVE) p.x += p.diveDir * 8 * slow;
-  else p.x += inp.x * 6 * slow;
+  else p.x += inp.x * 6 * slow * (p.ai ? AI_LEVELS[p.aiLevel ?? aiLevel].move || 1 : 1); // AI 난이도별 이동속도
   const [mn, mx] = p.side === 0 ? [32, 184] : [248, 400];
   p.x = Math.max(mn, Math.min(mx, p.x));
 
