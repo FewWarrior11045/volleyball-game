@@ -99,6 +99,8 @@ function loadImg(key, src) {
 }
 for (const [k, src] of Object.entries(CONFIG.IMAGES)) loadImg(k, src);
 CHARACTERS.forEach((c, i) => loadImg('char' + i, c.img));
+/* 308호 엔딩 컷씬 전용 사진 (게임 캐릭터 사진과 따로) */
+loadImg('cineKdh', 'assets/cine_kdh.png'); loadImg('cineYean', 'assets/cine_yean.png'); loadImg('cineYeanFace', 'assets/cine_yean_face.png');
 
 // ===== 키 입력 =====
 const down = new Set(), pressed = new Set();
@@ -6072,8 +6074,9 @@ function e3Outline(src, col) {
 }
 function e3Sprite(ci, sc, col = '#05030a', tint = [0, 6, 24]) {
   const key = ci + ':' + sc + col; if (e3.spr[key]) return e3.spr[key];
-  const im = imgs['char' + ci], ch = CHARACTERS[ci]; if (!im) return null;
-  const w = Math.max(4, Math.round(ch.w * sc)), h = Math.max(4, Math.round(ch.h * sc));
+  const sk = CHARACTERS[ci].skill, cine = sk === 'sock' ? ['cineKdh', 50] : sk === 'yean' ? ['cineYean', 76] : null; /* 엔딩 전용 사진은 작게 */
+  const im = (cine && imgs[cine[0]]) || imgs['char' + ci], ch = CHARACTERS[ci]; if (!im) return null;
+  const h = Math.max(4, Math.round((cine && imgs[cine[0]] ? cine[1] : ch.h) * sc)), w = Math.max(4, Math.round(cine && imgs[cine[0]] ? (h * im.width) / im.height : ch.w * sc));
   return (e3.spr[key] = e3Outline(e3Pixelize(im, w, h, tint), col));
 }
 function e3DrawSpr(x, ci, cx, by, sc, alpha = 1, flip = false, col, tint) { // 아래 가운데 기준
@@ -6219,7 +6222,7 @@ function e3Wrap(str, w) { const out = []; let cur = ''; for (const chh of str) {
 function e3PorBox(T, who) { const two = !!T.two, s = two ? 64 : 80, side = players[who === 'y' ? e3.yi : e3.di].side; return { x: side === 0 ? 12 : GW - 12 - s, y: 266 - s, s, side }; }
 function e3Portrait(T, who, dim) {
   const e = e3, P = players[who === 'y' ? e.yi : e.di], b = e3PorBox(T, who), t = e.t;
-  if (!e.por[who]) { const im = imgs['char' + P.char]; if (im) e.por[who] = e3Pixelize(im, 40, Math.round((40 * im.height) / im.width), who === 'y' ? [18, 0, 26] : [0, 8, 30]); }
+  if (!e.por[who]) { const im = imgs[who === 'y' ? 'cineYeanFace' : 'cineKdh'] || imgs['char' + P.char]; if (im) e.por[who] = e3Pixelize(im, 40, Math.round((40 * im.height) / im.width), who === 'y' ? [18, 0, 26] : [0, 8, 30]); }
   ctx.fillStyle = '#05030a'; ctx.fillRect(b.x - 3, b.y - 3, b.s + 6, b.s + 6);
   const gg = ctx.createLinearGradient(0, b.y, 0, b.y + b.s); gg.addColorStop(0, who === 'y' ? '#3a0a28' : '#0a1a3a'); gg.addColorStop(1, '#0a0614'); ctx.fillStyle = gg; ctx.fillRect(b.x, b.y, b.s, b.s);
   const p = e.por[who];
