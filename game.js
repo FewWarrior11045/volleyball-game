@@ -14,7 +14,7 @@ const CONFIG = {
 // type 'sprite': 몸 전체 사진 (배경 지운 PNG)
 // skill: 'giant' = 키 2배 / null = 아직 없음
 const CHARACTERS = [
-  { name: '무표정맨', gender: 'm', grade: 'POOP', type: 'sprite', img: 'assets/face1_body.png', w: 70, h: 54, skill: 'sock',
+  { name: '김두현', gender: 'm', grade: 'POOP', type: 'sprite', img: 'assets/kdh.png', w: 54, h: 57, skill: 'sock',
     skillName: '숙성 양말 서브', desc: ['냄새가 경기장 전체에 진동...', '방독면 심판 레드카드 -1점 (트롤)'] },
   { name: '장민욱', gender: 'm', grade: 'MYTHIC', type: 'sprite', img: 'assets/minwook.png', w: 58, h: 58, skill: 'jmw',
     skillName: '분노 폭주', desc: ['랜덤 3초 시네마틱 3종!', '운석·핀볼·욕설 음파 (삐-)'] },
@@ -33,7 +33,7 @@ const CHARACTERS = [
     skillName: '위인 강림', desc: ['랜덤 위인 빙의! (5종)', '거북선·편전·뇌전·해례본·결사대'] },
   { name: '박준형', gender: 'm', grade: 'LEGENDARY', type: 'sprite', img: 'assets/math.png', w: 36, h: 68, skill: 'math',
     skillName: '수학 강림', desc: ['랜덤 수학 필살기 (5종)', '코트를 복소평면으로 바꿔 폭파'] },
-  { name: '주지혁', gender: 'm', grade: 'MYTHIC', type: 'sprite', img: 'assets/jjh.png', w: 36, h: 66, skill: 'jjh',
+  { name: '주지혁', gender: 'm', grade: 'MYTHIC', type: 'sprite', img: 'assets/jjh.png', w: 30, h: 66, skill: 'jjh',
     skillName: '선택적 기사도', desc: ['상대 성별 따라 인격 180° 변신!', '여자: 솜사탕 ♥ · 남자: 뚝배기 ☠'] },
   { name: '차명준', gender: 'm', grade: 'ULTRA', type: 'sprite', img: 'assets/cmj.png', w: 56, h: 60, skill: 'cmj', mana: 6,
     skillName: '시공간 커널 해킹', desc: ['랜덤 6초 시네마틱 7종! (마나 6칸)', '양자·E=mc²·404·AI·시간·BSOD·빅뱅'] },
@@ -4559,6 +4559,8 @@ function drawBeam() {
 }
 
 // ----- 캐릭터 선택 -----
+// 선택 화면 위/아래: 다른 줄의 같은 칸으로
+function selRow(i) { const n = CHARACTERS.length, per = Math.ceil(n / 2); return i < per ? Math.min(n - 1, i + per) : i - per; }
 function updateSelect() {
   if (solo) {
     const H = players[humanSide], A = players[1 - humanSide], k = H.keys, n = CHARACTERS.length;
@@ -4566,12 +4568,14 @@ function updateSelect() {
     if (!H.picked) {
       if (pressed.has(k.l)) H.char = (H.char + n - 1) % n;
       if (pressed.has(k.r)) H.char = (H.char + 1) % n;
+      if (pressed.has(k.u) || pressed.has(k.d)) H.char = selRow(H.char);
       if (pressed.has(k.a)) { H.picked = true; popups.push({ text: '선택!', x: H.side === 0 ? 108 : 324, y: 200, t: 20, color: H.color }); }
       return;
     }
     if (!A.picked) { // 이제 내 키로 AI 캐릭터 고르기 (-1 = 랜덤)
       if (pressed.has(k.l)) A.char = A.char <= -1 ? n - 1 : A.char - 1;
       if (pressed.has(k.r)) A.char = A.char >= n - 1 ? -1 : A.char + 1;
+      if ((pressed.has(k.u) || pressed.has(k.d)) && A.char >= 0) A.char = selRow(A.char);
       if (pressed.has(k.a)) {
         if (A.char < 0) A.char = Math.floor(Math.random() * n);
         A.picked = true; popups.push({ text: 'AI: ' + CHARACTERS[A.char].name, x: A.side === 0 ? 108 : 324, y: 200, t: 30, color: A.color });
@@ -4587,6 +4591,7 @@ function updateSelect() {
     const k = p.keys, n = CHARACTERS.length;
     if (pressed.has(k.l)) p.char = (p.char + n - 1) % n;
     if (pressed.has(k.r)) p.char = (p.char + 1) % n;
+    if (pressed.has(k.u) || pressed.has(k.d)) p.char = selRow(p.char);
     if (pressed.has(k.a)) { p.picked = true; popups.push({ text: '선택!', x: p.side === 0 ? 108 : 324, y: 200, t: 20, color: p.color }); }
   }
   if (players[0].picked && players[1].picked) {
@@ -5079,83 +5084,81 @@ function drawPopups() {
 // 캐릭터 선택 화면
 function drawSelect() {
   ctx.fillStyle = 'rgba(10,20,40,.55)'; ctx.fillRect(0, 0, GW, GH);
-  text('캐릭터 선택', GW / 2, 30, 22, '#fff3a0');
-  const n = CHARACTERS.length, gap = 6, cw = Math.min(54, (GW - 16 - gap * (n - 1)) / n); // 캐릭터 많으면 카드 작게
-  const x0 = GW / 2 - (n * cw + (n - 1) * gap) / 2;
+  text('캐릭터 선택', GW / 2, 22, 17, '#fff3a0');
+  // 2줄 카드 (윗줄 절반, 아랫줄 나머지)
+  const n = CHARACTERS.length, per = Math.ceil(n / 2), gap = 6, CH = 48, cw = Math.min(46, (GW - 16 - gap * (per - 1)) / per);
   CHARACTERS.forEach((c, i) => {
-    const x = x0 + i * (cw + gap), y = 42;
+    const row = Math.floor(i / per), col = i % per, inRow = row === 0 ? per : n - per;
+    const x = GW / 2 - (inRow * cw + (inRow - 1) * gap) / 2 + col * (cw + gap), y = 34 + row * (CH + 12);
     const gc = GRADE_COLOR[c.grade] || '#fff';
     ctx.fillStyle = 'rgba(255,255,255,.15)';
-    ctx.beginPath(); ctx.roundRect(x, y, cw, 70, 6); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(x, y, cw, CH, 5); ctx.fill();
     // 고른 카드는 배경을 1P 파랑 / 2P 빨강으로 칠함 (둘 다 고르면 반반)
     const on = players.filter((p) => p.char === i);
     if (on.length) {
       ctx.save();
-      ctx.beginPath(); ctx.roundRect(x, y, cw, 70, 6); ctx.clip();
+      ctx.beginPath(); ctx.roundRect(x, y, cw, CH, 5); ctx.clip();
       on.forEach((p) => {
         const half = on.length === 2;
         const blink = p.picked && Math.floor(p.anim / 2) % 2;
         ctx.fillStyle = p.side === 0
           ? (blink ? 'rgba(120,180,255,.85)' : 'rgba(47,124,246,.6)')
           : (blink ? 'rgba(255,140,130,.85)' : 'rgba(242,70,60,.6)');
-        ctx.fillRect(half && p.side === 1 ? x + cw / 2 : x, y, half ? cw / 2 : cw, 70);
+        ctx.fillRect(half && p.side === 1 ? x + cw / 2 : x, y, half ? cw / 2 : cw, CH);
       });
       ctx.restore();
     }
-    ctx.strokeStyle = gc; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.roundRect(x + 1, y + 1, cw - 2, 68, 5); ctx.stroke();
+    ctx.strokeStyle = gc; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.roundRect(x + 1, y + 1, cw - 2, CH - 2, 4); ctx.stroke();
     const im = imgs['char' + i];
-    if (im && c.type === 'sprite') {
-      let h = 62, w = h * im.width / im.height;
+    if (im) {
+      let h = CH - 16, w = h * im.width / im.height;
       if (w > cw - 6) { h *= (cw - 6) / w; w = cw - 6; } // 카드 안에 맞추기
-      ctx.drawImage(im, x + cw / 2 - w / 2, y + 62 - h + 4, w, h);
-    } else if (im) {
-      ctx.save(); ctx.beginPath(); ctx.arc(x + cw / 2, y + 30, 20, 0, 7); ctx.clip();
-      ctx.drawImage(im, x + cw / 2 - 20, y + 10, 40, 40); ctx.restore();
+      ctx.drawImage(im, x + cw / 2 - w / 2, y + CH - 10 - h, w, h);
     }
-    text(c.name, x + cw / 2, y + 66, 8);
-    text(c.grade, x + cw / 2, y + 9, 6, gc);
+    text(c.name, x + cw / 2, y + CH - 3, 7);
+    text(c.grade, x + cw / 2, y + 7, 5, gc);
     players.forEach((p) => {
       if (p.char !== i) return;
-      text(p.ai ? 'AI' : p.side === 0 ? '1P' : '2P', p.side === 0 ? x + 2 : x + cw - 2, y - 4, 9, p.color, p.side === 0 ? 'left' : 'right');
+      text(p.ai ? 'AI' : p.side === 0 ? '1P' : '2P', p.side === 0 ? x + 2 : x + cw - 2, y - 2, 8, p.color, p.side === 0 ? 'left' : 'right');
     });
   });
   // 양쪽 설명 + 큰 미리보기
   players.forEach((p) => {
     const cx = p.side === 0 ? 108 : 324;
     if (p.char < 0) { // AI 랜덤
-      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.roundRect(cx - 98, 122, 196, 172, 8); ctx.fill();
-      text('?', cx, 210, 60 + Math.sin(p.anim * 0.2) * 3, p.color);
-      text('🎲 AI 캐릭터: 랜덤', cx, 150, 13, '#fff3a0');
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.roundRect(cx - 98, 146, 196, 152, 8); ctx.fill();
+      text('?', cx, 228, 50 + Math.sin(p.anim * 0.2) * 3, p.color);
+      text('🎲 AI 캐릭터: 랜덤', cx, 170, 13, '#fff3a0');
       const H = players[humanSide];
-      text(H.picked ? (H.side === 0 ? 'D/G로 골라 주기 · Z 확정' : '←/→로 골라 주기 · Enter 확정') : '안 고르면 랜덤!', cx, 266, 9, '#ddd');
-      text(H.picked ? '(랜덤 그대로 확정해도 돼)' : '내 캐릭터 먼저 고르기', cx, 282, 9, '#aaa');
+      text(H.picked ? (H.side === 0 ? 'D/G/R/F로 골라 주기 · Z 확정' : '방향키로 골라 주기 · Enter 확정') : '안 고르면 랜덤!', cx, 274, 9, '#ddd');
+      text(H.picked ? '(랜덤 그대로 확정해도 돼)' : '내 캐릭터 먼저 고르기', cx, 289, 9, '#aaa');
       return;
     }
     const c = CHARACTERS[p.char];
     ctx.fillStyle = 'rgba(0,0,0,.35)';
-    ctx.beginPath(); ctx.roundRect(cx - 98, 122, 196, 172, 8); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(cx - 98, 146, 196, 152, 8); ctx.fill();
     ctx.save();
-    ctx.translate(cx - 50, 222);
-    ctx.scale(1.3, 1.3);
+    ctx.translate(cx - 50, 238);
+    ctx.scale(1.15, 1.15);
     const fake = { ...p, state: NORMAL, hm: 1, hw: 1, skillT: 0 };
     ctx.scale(p.side === 0 ? 1 : -1, 1);
     drawFigure(fake);
     ctx.restore();
     const tx = cx - 10;
-    text(c.name, tx, 148, 15, p.color, 'left');
-    text(c.grade, tx, 132, 9, GRADE_COLOR[c.grade], 'left');
-    text('특수: ' + c.skillName, tx, 170, 11, '#fff3a0', 'left');
+    text(c.name, tx, 176, 15, p.color, 'left');
+    text(c.grade, tx, 160, 9, GRADE_COLOR[c.grade], 'left');
+    text('특수: ' + c.skillName, tx, 196, 11, '#fff3a0', 'left');
     c.desc.forEach((d, i) => {
       // 칸을 넘으면 글자를 작게
       let fs = 9; ctx.font = `bold ${fs}px "Malgun Gothic", sans-serif`;
       while (ctx.measureText(d).width > cx + 92 - tx && fs > 6) { fs -= 0.5; ctx.font = `bold ${fs}px "Malgun Gothic", sans-serif`; }
-      text(d, tx, 188 + i * 15, fs, '#fff', 'left');
+      text(d, tx, 213 + i * 14, fs, '#fff', 'left');
     });
     const H = players[humanSide];
-    let keys = p.side === 0 ? 'D/G 고르기 · Z 선택' : '←/→ 고르기 · Enter 선택';
-    if (solo && p.ai) keys = H.picked ? (H.side === 0 ? 'D/G로 골라 주기 · Z 확정' : '←/→로 골라 주기 · Enter 확정') : 'AI (내 캐릭터 먼저)';
-    text(p.picked ? (p.ai ? 'AI 준비 완료!' : '준비 완료!') : keys, cx, 284, 10, p.picked ? '#7dff9a' : '#ddd');
+    let keys = p.side === 0 ? 'D/G/R/F 고르기 · Z 선택' : '방향키 고르기 · Enter 선택';
+    if (solo && p.ai) keys = H.picked ? (H.side === 0 ? 'D/G/R/F로 골라 주기 · Z 확정' : '방향키로 골라 주기 · Enter 확정') : 'AI (내 캐릭터 먼저)';
+    text(p.picked ? (p.ai ? 'AI 준비 완료!' : '준비 완료!') : keys, cx, 290, 10, p.picked ? '#7dff9a' : '#ddd');
   });
 }
 
