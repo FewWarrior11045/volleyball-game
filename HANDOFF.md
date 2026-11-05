@@ -19,7 +19,7 @@
 - 코드는 전부 `game.js` 한 파일(약 8,000줄). 실행은 `index.html`
 - 캐릭터는 사용자 친구들의 **실제 사진**(배경만 지운 원본 사진)
   - 등급 + 시네마틱 스킬 + 전용 대사가 있음
-- 현재 버전: **v7.2.1**
+- 현재 버전: **v7.3**
 
 ---
 
@@ -38,6 +38,7 @@
 6. **사용자 실명·학교는 코드나 게임 화면에 넣지 않기.**
    - 예외: 게임 제목 '동성 배구 대전'은 사용자가 직접 요청한 것.
    - 친구 캐릭터 이름은 사용자가 정해 준 대로 씀.
+   - 예외: 시작 로딩 화면 'made by 경목'은 사용자가 직접 요청함 (v7.3).
 7. 파일 경로는 `/assets/...`가 아니라 **`assets/...` 상대 경로**로.
 8. 저장소를 공개(Public)로 바꾸는 등 공개 관련 변경은 **하기 전에 사용자에게 확인.**
 9. **파일 삭제가 필요하면 먼저 물어보기.**
@@ -309,6 +310,7 @@ Claude outputs/volleyball-preview.html   미리보기 (커밋 안 해도 되는 
 | ~6043~끝 | **308호 엔딩 (e3*)** |
 
 ### 5-1. state 목록
+(시작 로딩 화면은 state가 아니라 `INTRO.t` < `INTRO_END`(75)인 동안 update를 막고 화면 위에 덮어 그림. Playwright(navigator.webdriver)면 건너뜀 → 테스트 스크립트는 그대로 됨)
 title, howto, side, diff, select, startFadeOut, startMsg, ready, play, slow, fadeOut, over, **e308**
 - `isMenu()` = title/howto/startFadeOut/side/diff
 
@@ -522,6 +524,7 @@ python3 tools/build_preview.py "출력경로/volleyball-preview.html"
 - v7.1 보스 레이드 페이즈 2·3 완성 (기믹 전부 + 페이즈 전환 연출 + 페이즈별 BGM + 기믹 대응 스킬 자동 선택 + 308호 즉사 기믹), 제한 시간 15분
 - v7.2 클릭·터치로 메뉴 선택 + 모바일 플레이(베타, 1인용, 버튼 배치 2종) + 보스 인증서 시간 제한 없앰·PNG 저장
 - v7.2.1 학교 와이파이 온라인 연결 — TURN 중계 서버(Metered 무료 20GB/월, 443 TLS 포함) 추가
+- v7.3 시작 로딩 화면 (검은 화면 'made by 경목' 1.2초 → 로딩 중... 1.8초 → 메인, game.js 맨 끝 '시작 로딩 화면' 구역)
 
 ## 13. 남은 일 / 대기 중
 - [x] 이동우 실명으로 변경 완료 (v5.12)
