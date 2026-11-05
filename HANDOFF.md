@@ -116,5 +116,5 @@ assets/
 - Pages 공개 전에 사진 속 친구들한테 동의 다시 확인
 - v5.9.1 송리나 스프라이트를 엎드려 자는 몸(+책)까지 확장, faceNet 옵션으로 양쪽 모두 네트 방향
 - v5.10 김예안 vs 김두현 전용 엔딩 컷씬 "308호의 마지막 점호" (state e308, fx: e3* 함수들 — 도트 캔버스 216x152 + 색수차·글리치·레터박스·낙엽, 대사 타자기, 흑백 반전 타구, CRT 꺼짐, 빈 308호, 기숙사 배웅 + 언덕 너머 퇴장). 경기 끝나면 자동, 경기 중 M키로 바로 보기(그 매치에서만 안내 표시). Z/Enter 대사 넘김, Esc 건너뛰기
-- 김우현(MYTHIC) 스킬 코드 초안은 클라우드 scratchpad fx_wh.js에만 있음, 아직 미적용
 - v5.10.1 308호 엔딩 전용 사진 추가: assets/cine_kdh.png(얼굴+후드), cine_yean.png(전신), cine_yean_face.png(초상화용). 엔딩에서만 쓰고 작게 표시 (e3Sprite의 cine 높이 50/76)
+- v5.11 새 캐릭터 김우현 (MYTHIC, index 13, skill wh, 4초 시네마틱 3종: broadcast/evict/clap, WH_TAUNT + 김예안 상호 라이벌 대사 WH_VS_YEAN/YEAN_VS_WH). 308호 엔딩을 산나비 느낌으로 변경: 기숙사 앞 단풍나무 마당 배경(e3Yard), 캐릭터 작게 땅에 서서 머리 위 말풍선(e3Bubble), 초상화 박스 삭제
