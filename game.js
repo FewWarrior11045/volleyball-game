@@ -6566,6 +6566,18 @@ function drawE308() {
 const NET_VERSION = 'v7.2-' + NCHAR;
 const NET_PREFIX = 'dsvb26-';      // PeerJS 방 이름 앞에 붙는 글자 (방 코드 4자리랑 합쳐짐)
 const NET_DELAY = 3;               // 키 입력 지연 (프레임) — 3 = 0.12초
+// 중계(TURN) 서버 (v7.2.1): 학교 와이파이처럼 직접 연결이 막힌 곳에서 이 서버를 거쳐 우회함.
+// 직접 연결이 되면 안 씀. 443 포트(일반 https와 같은 길)도 있어서 학교망에서도 잘 통함. Metered 무료 20GB/월
+const NET_TURN = { username: '2b3b95430428d9b29c0f90dd', credential: 'r4ocmQdoNqq1uU/k' };
+const NET_ICE = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun.relay.metered.ca:80' },
+  { urls: 'turn:standard.relay.metered.ca:80', ...NET_TURN },
+  { urls: 'turn:standard.relay.metered.ca:80?transport=tcp', ...NET_TURN },
+  { urls: 'turn:standard.relay.metered.ca:443', ...NET_TURN },
+  { urls: 'turns:standard.relay.metered.ca:443?transport=tcp', ...NET_TURN },
+];
+function netPeerOpts() { return Object.assign({ config: { iceServers: NET_ICE } }, NET.peerOpts || {}); }
 const NET_ROLES = ['l', 'r', 'u', 'd', 'a', 's', 'm', 'e']; // 왼·오·위·아래·공격·스킬·M·Esc
 const NET_KEYMAP = { KeyD: 'l', ArrowLeft: 'l', KeyG: 'r', ArrowRight: 'r', KeyR: 'u', ArrowUp: 'u', KeyF: 'd', ArrowDown: 'd',
   KeyZ: 'a', Enter: 'a', ShiftLeft: 's', Numpad5: 's', KeyM: 'm', Escape: 'e' };
@@ -6795,7 +6807,7 @@ function netHost() {
   NET.host = true; NET.n = NET.mode;
   NET.code = String(1000 + Math.floor(nativeRandom() * 9000));
   netLobbyMsg('방 만드는 중...');
-  const peer = (NET.peer = new Peer(NET_PREFIX + NET.code, NET.peerOpts || {}));
+  const peer = (NET.peer = new Peer(NET_PREFIX + NET.code, netPeerOpts()));
   peer.on('open', () => { netHostMsg(); netAiBox(); });
   peer.on('error', (e) => { if (e.type === 'unavailable-id') netHost(); else if (e.type !== 'peer-unavailable') netLobbyMsg(netErr(e)); });
   peer.on('connection', (c) => {
@@ -6861,7 +6873,7 @@ function netJoin(code) {
   if (!/^\d{4}$/.test(code)) { netLobbyMsg('방 코드는 숫자 4자리야!'); return; }
   if (!window.Peer) { netLobbyMsg('온라인 기능을 못 불러왔어 😢\n인터넷 연결을 확인하고 새로고침 해 줘'); return; }
   netCleanup(); NET.full = false; netLobbyMsg('연결하는 중...');
-  const peer = (NET.peer = NET.peerOpts ? new Peer(NET.peerOpts) : new Peer());
+  const peer = (NET.peer = new Peer(netPeerOpts()));
   peer.on('open', () => {
     const c = (NET.conn = peer.connect(NET_PREFIX + code, { reliable: true }));
     c.on('data', (m) => netOnData(m, 0));
