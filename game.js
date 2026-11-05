@@ -39,12 +39,14 @@ const CHARACTERS = [
     skillName: '시공간 커널 해킹', desc: ['랜덤 6초 시네마틱 7종! (마나 6칸)', '양자·E=mc²·404·AI·시간·BSOD·빅뱅'] },
   { name: '김예안', gender: 'm', grade: 'LEGENDARY', type: 'sprite', img: 'assets/yean.png', w: 62, h: 46, skill: 'yean',
     skillName: '기숙사 퇴사하기', desc: ['랜덤 6초 시네마틱 3종!', '욕설 폭격·벌점 25점 퇴사·160dB 샤우팅'] },
+  { name: '송리나', gender: 'f', grade: 'MYSTIC', type: 'sprite', img: 'assets/rina.png', w: 74, h: 66, faceNet: true, skill: 'rina',
+    skillName: '국영수사과 만점', desc: ['과목별 4초 시네마틱 5종!', '패시브: 상대 스파이크 25% 오답 처리'] },
 ];
 // 등급 색깔
-const GRADE_COLOR = { POOP: '#9a6233', COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f', ULTRA: '#00ffd0' };
+const GRADE_COLOR = { POOP: '#9a6233', COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f', MYSTIC: '#d35bff', ULTRA: '#00ffd0' };
 
 // 스킬 시간 (25프레임 = 1초)
-const SKILL_FRAMES = { giant: 125, whirl: 250, hairbeam: 125, democracy: 8, meteor: 8, party: 225, history: 8, sock: 8, math: 8, kim: 8, gm: 8, jmw: 8, jjh: 8, cmj: 8, yean: 8 };
+const SKILL_FRAMES = { giant: 125, whirl: 250, hairbeam: 125, democracy: 8, meteor: 8, party: 225, history: 8, sock: 8, math: 8, kim: 8, gm: 8, jmw: 8, jjh: 8, cmj: 8, yean: 8, rina: 8 };
 const SOCK_REF = 26, SOCK_CARD = 42, SOCK_SPRAY = 54, SOCK_MINUS = 74, SOCK_END = 92; // 숙성 양말 서브: 심판 등장 / 레드카드 / 소독 / -1점 / 끝
 const PARTY_INTRO = 62; // 파티 시작 연출 (2.5초, 경기 멈춤)
 let party = null;       // { side, girls, cd } 파티 중인 쪽
@@ -335,6 +337,10 @@ function updatePlayer(p, inp) {
       for (let i = 0; i < 70; i++) candles.push({ x: Math.random() * GW, y: 20 + Math.random() * 270, d: Math.random() * 14, s: 0.6 + Math.random() * 0.8, f: Math.random() * 6 });
       cine = { kind: 'democracy', t: 0, caster: p, target: players[1 - p.side], candles, counter: Math.random() < (dictTest ? 1 : DICTATOR_CHANCE) };
     }
+    if (ch.skill === 'rina') {
+      cine = { kind: 'rina', t: 0, caster: p, target: players[1 - p.side], sk: RN_SKILLS[Math.floor(Math.random() * RN_SKILLS.length)] };
+      sfx('whoosh');
+    }
     if (ch.skill === 'yean') {
       cine = { kind: 'yean', t: 0, caster: p, target: players[1 - p.side], sk: YA_SKILLS[Math.floor(Math.random() * YA_SKILLS.length)] };
       sfx('whoosh');
@@ -592,7 +598,8 @@ function hitBall(p, inp) {
   ball.power = false;
 
   if (!bumpOnly && p.state === POWER) {
-    { const o = players[1 - p.side]; if (CHARACTERS[o.char].skill === 'cmj' && Math.random() < 0.3) cmjReact('spike', o, p); }
+    { const o = players[1 - p.side]; if (CHARACTERS[o.char].skill === 'cmj' && Math.random() < 0.3) cmjReact('spike', o, p);
+      if (CHARACTERS[o.char].skill === 'rina' && Math.random() < 0.25) p.rinaNerf = true; } // 송리나 패시브: 출제 의도 파악
     const toward = ball.x < NET_X ? 1 : -1;
     ball.vx = toward * (inp.x !== 0 ? 20 : 10);
     ball.vy = Math.abs(ball.vy) * inp.y * 2;
@@ -601,6 +608,7 @@ function hitBall(p, inp) {
       if (isFem(players[1 - p.side])) { ball.vx *= 0.5; ball.vy *= 0.5; ball.power = false; popups.push({ text: '♥', x: ball.x, y: ball.y - 16, t: 16, color: '#ff8fc8' }); }
       else { ball.vx = Math.sign(ball.vx) * Math.min(30, Math.abs(ball.vx) * 1.2); ball.vy *= 1.2; heavy(ball.x, ball.y, 1.2); popups.push({ text: '☠', x: ball.x, y: ball.y - 16, t: 16, color: '#ff3040' }); }
     }
+    if (p.rinaNerf) { p.rinaNerf = false; ball.vx *= 0.6; ball.vy *= 0.6; ball.power = false; popups.push({ text: '[출제 의도 파악 완료]', x: ball.x, y: ball.y - 20, t: 24, color: '#d080ff' }); }
     if (p.ampT > 0) { ball.vx = Math.sign(ball.vx) * Math.min(30, Math.abs(ball.vx) * 1.4); ball.vy *= 1.4; heavy(ball.x, ball.y, 1.4); popups.push({ text: '공명 증폭!', x: p.x, y: p.y - 50, t: 20, color: '#5aa8ff' }); }
     if (p.weakT > 0) { ball.vx *= 0.45; ball.vy *= 0.45; ball.power = false; popups.push({ text: '위헌!', x: p.x, y: p.y - 50, t: 20, color: '#ffffff' }); }
     effects.push({ x: ball.x, y: ball.y, t: 8 });
@@ -653,6 +661,7 @@ function step(scoring) {
       players.forEach((p) => { p.y = P_GROUND_Y; p.vy = 0; p.skillT = 0; });
       state = 'over';
       timer = 0;
+      if (is308()) { state = 'e308'; e3Start(); } /* 김예안 vs 김두현: 308호 엔딩 */
     } else {
       state = 'slow';
       timer = 0; slowTick = 0;
@@ -863,6 +872,7 @@ function cineCam() {
   if (cine.kind === 'jjh') return jjCam(cine);
   if (cine.kind === 'cmj') return cmCam(cine);
   if (cine.kind === 'yean') return yaCam(cine);
+  if (cine.kind === 'rina') return rnCam(cine);
   if (cine.kind === 'history') return cine.hero && cine.hero.key === 'gyebaek' ? histCam(cine) : withFollow(cine, histCam(cine), HIST_FIRE, HIST_HIT);
   return null;
 }
@@ -891,6 +901,7 @@ function drawCineUI() {
   if (cine.kind === 'jjh') drawJjhUI(cine);
   if (cine.kind === 'cmj') drawCmjUI(cine);
   if (cine.kind === 'yean') drawYeanUI(cine);
+  if (cine.kind === 'rina') drawRinaUI(cine);
   if (cine.kind === 'history') drawHistUI(cine);
 }
 
@@ -1289,10 +1300,11 @@ function drawMatrixHits() {
     if (h.t <= 0) { matrixHits.splice(i, 1); continue; }
     if (h.jj) { // 주지혁 블로킹: 솜이불 쿠션 / 철퇴 파리채 짝!
       ctx.save(); ctx.globalAlpha = 1 - q;
-      if (h.jj === 'soft') { drawWings(h.x, 150, 1.6, 1, 26 - h.t); for (let k = 0; k < 8; k++) drawHeart(h.x + Math.cos(k * 0.8) * 40 * q, 150 + Math.sin(k * 0.8) * 30 * q, 5, '#ff6fa8'); ctx.fillStyle = 'rgba(255,240,250,.85)'; ctx.beginPath(); ctx.ellipse(h.x, 160, 34, 14, 0, 0, 7); ctx.fill(); }
+      if (h.jj === 'grammar') { ctx.strokeStyle = '#ff2020'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(h.x - 60, 150); ctx.lineTo(h.x - 60 + 120 * Math.min(1, q * 4), 146); ctx.stroke(); ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(h.x, 270, 20 + q * 70, 5 + q * 16, 0, 0, 7); ctx.stroke(); }
+      else if (h.jj === 'soft') { drawWings(h.x, 150, 1.6, 1, 26 - h.t); for (let k = 0; k < 8; k++) drawHeart(h.x + Math.cos(k * 0.8) * 40 * q, 150 + Math.sin(k * 0.8) * 30 * q, 5, '#ff6fa8'); ctx.fillStyle = 'rgba(255,240,250,.85)'; ctx.beginPath(); ctx.ellipse(h.x, 160, 34, 14, 0, 0, 7); ctx.fill(); }
       else { drawSwatter(h.x, 210, 2.2, (h.side === 0 ? 1 : -1) * (-1.2 + Math.min(1, q * 5) * 1.6), 1); ctx.strokeStyle = '#ff3040'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(h.x, 270, 20 + q * 80, 5 + q * 18, 0, 0, 7); ctx.stroke(); }
       ctx.restore();
-      ctx.save(); ctx.globalAlpha = 1 - q; text(h.jj === 'soft' ? '포근~♥' : '짝-!!', h.x, 120 - q * 20, 18, h.jj === 'soft' ? '#ff8fc8' : '#ff3040'); ctx.restore();
+      ctx.save(); ctx.globalAlpha = 1 - q; text(h.jj === 'grammar' ? 'SYNTAX ERROR!' : h.jj === 'soft' ? '포근~♥' : '짝-!!', h.x, 120 - q * 20, 18, h.jj === 'soft' ? '#ff8fc8' : h.jj === 'grammar' ? '#ff4dff' : '#ff3040'); ctx.restore();
       continue;
     }
     if (h.gye) { // 결사대: 창 수십 자루가 위로 찌름 + 붉은 충격파 + 막아라!
@@ -1475,7 +1487,7 @@ function drawStatusIcons(p) {
   if (p.matrixGuard && p.guardT > 0) text('[ 행렬 방패 ]', p.x, y - 10, 8, '#c896ff');
   if (p.jumpT > 0) text('자유 점프 ▲', p.x, y - 20, 8, '#78dcc8');
   if (p.silenceT > 0) text('■ BSOD 스킬 봉인', p.x, y - 40, 8, '#6f9bff');
-  if (p.blockT > 0) { if (p.blockMode === 'soft') drawWings(p.x, p.y - 14, 0.7, 0.8, p.anim); else drawSwatter(p.x + (p.side === 0 ? 14 : -14), p.y - 10, 0.6, 0, 0.85); text(p.blockMode === 'soft' ? '♥ 쿠션 대기' : '☠ 파리채 대기', p.x, y - 30, 8, p.blockMode === 'soft' ? '#ff8fc8' : '#ff3040'); }
+  if (p.blockT > 0) { if (p.blockMode === 'soft') drawWings(p.x, p.y - 14, 0.7, 0.8, p.anim); else drawSwatter(p.x + (p.side === 0 ? 14 : -14), p.y - 10, 0.6, 0, 0.85); text(p.blockMode === 'grammar' ? '✎ 문법 교정 대기' : p.blockMode === 'soft' ? '♥ 쿠션 대기' : '☠ 파리채 대기', p.x, y - 30, 8, p.blockMode === 'soft' ? '#ff8fc8' : '#ff3040'); }
   if (CHARACTERS[p.char].skill === 'jjh' && (state === 'play' || state === 'ready')) { // 패시브: 선택적 기사도 오라
     const fem = isFem(players[1 - p.side]);
     for (let i = 0; i < 4; i++) { const an = p.anim * 0.08 + i * 1.57, ax = p.x + Math.cos(an) * 22, ay = p.y - 6 + Math.sin(an) * 14;
@@ -2298,6 +2310,167 @@ function drawYeanUI(c) {
     const w = ctx.measureText(ln).width + 16; ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(GW / 2 - w / 2, y - 13, w, big ? 20 : 16);
     text(ln.slice(0, n), GW / 2, y + (big ? 2 : 0), big ? 14 : i ? 10 : 11, i ? '#ffffff' : `rgb(${sk.col})`);
   });
+  ctx.restore();
+}
+
+// ===== 송리나 (MYSTIC): 국영수사과 만점 — 4초 과목별 시네마틱 5종 =====
+const RN_B = 25, RN_FIRE = 75, RN_END = 100;
+const RN_SKILLS = [
+  { key: 'math', subj: '수학', title: '[수학] f(x) 미적분 3D 굴절 스파이크', en: 'Calculus Vector Smash', col: '138,43,226', line: '"이 극댓값 위치에서는... 너희 수비 각도가 존재할 수 없어."' },
+  { key: 'kor', subj: '국어', title: '[국어] 문맥의 이해: 은유적 404 페이크', en: 'Metaphorical Context Fake', col: '210,40,40', line: '"행간의 의미를 파악하지 못했군요. 이번 문항은... 오답입니다."' },
+  { key: 'eng', subj: '영어', title: '[영어] Grammar Error: 강제 문법 교정 블록', en: 'Grammar Correction Firewall', col: '255,0,255', line: '"주어와 동사의 수일치가 틀렸네요. 처음부터 다시 쓰세요."' },
+  { key: 'sci', subj: '과학', title: '[과학] 촉매 반응: 아보가드로 핵융합 서브', en: 'Catalyst Chemical Serve', col: '170,90,255', line: '"아보가드로 수만큼의 반응 열량... 너희 수비진이 감당할 수 있을까?"' },
+  { key: 'soc', subj: '사회', title: '[사회] 헌법 제1조: 법률적 권한 몰수', en: 'Constitutional Trial Block', col: '255,200,60', line: '"사회 계약설 위반. 당신의 공격 권한을 법률에 의거해 몰수합니다."' },
+];
+const RN_TAUNT = {
+  start: "오늘 배구 시험의 난이도는 '불수능'입니다. 전원 탈락을 준비하세요.",
+  error: ['100점 만점에 0점. 출제자의 의도를 전혀 읽지 못했군요.', '기초 교과서부터 다시 읽고 오세요. 1차원적인 오답입니다.'],
+  block: '거기 때릴 확률은 미적분학상 99.8%였습니다. 너무 지루한 공식이네요.',
+  miss: '쯧, 계산 변수에 체육관 습도 오차 0.01%가 있었군. 즉시 수정한다.',
+  win: '전과목 만점. 여러분과의 데이터 격차는 재수를 해도 극복할 수 없습니다.',
+  lose: '말도 안 돼... 채점 오류야! 이 문제는 전원 정답 처리되어야 한다고!',
+};
+const ELEMENTS = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca'];
+const KOR_TEXT = ['나랏말ᄊᆞ미 듕귁에 달아', '문ᄍᆞᆼ와로 서르 ᄉᆞᄆᆞᆺ디 아니ᄒᆞᆯᄊᆡ', '[가] 다음 글의 중심 내용으로', '가장 적절한 것은? (2점)', '① 은유는 행간에 숨어 있다', '② 수비는 문맥을 오독했다', '③ 공은 이미 네트 뒤에 있다'];
+function rnSource(c) { const P = c.caster, s = P.side === 0 ? 1 : -1; return c.sk.key === 'kor' ? { x: NET_X - s * 12, y: P.y - 34 } : { x: P.x + s * 24, y: P.y - 40 }; }
+function rnPath(c) { // 3차 함수처럼 2번 직각 굴절 → 사각지대
+  const P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, src = rnSource(c), [mn, mx] = T.side === 0 ? [44, 176] : [256, 388], blind = T.x - mn > mx - T.x ? mn + 6 : mx - 6, mid = NET_X + s * 40;
+  return [{ x: src.x, y: src.y }, { x: mid, y: src.y }, { x: mid, y: 200 }, { x: blind, y: 200 }];
+}
+
+function updateRina() {
+  const c = cine, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, t = ++c.t;
+  players.forEach((p) => p.anim++);
+  const [mn, mx] = T.side === 0 ? [44, 176] : [256, 388];
+  if (!c.init) { c.init = true; c.x0 = P.x; c.parts = []; }
+  if (t <= 15) { const q = t / 15, e = 1 - (1 - q) * (1 - q); P.y = P_GROUND_Y - e * 85; if (k === 'kor' || k === 'eng' || k === 'soc') P.x = c.x0 + (NET_X - s * 40 - c.x0) * e; }
+  P.state = JUMP; P.vy = 0;
+  if (t === 1) sfx('chime'); if (t === RN_B) sfx(k === 'eng' ? 'fail' : k === 'soc' ? 'bell' : 'zap', 0.6);
+  if (t > RN_B - 6 && t < RN_FIRE && t % 2 === 0) { const b = rnSource(c); c.parts.push({ x: b.x + (Math.random() - 0.5) * 120, y: b.y + (Math.random() - 0.5) * 80, tx: b.x, ty: b.y, t: 22, ch: k === 'sci' ? ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)] : k === 'eng' ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)] : k === 'kor' ? JAMO[Math.floor(Math.random() * JAMO.length)] : k === 'math' ? SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] : '§' }); }
+  for (const q of c.parts) { q.x += (q.tx - q.x) * 0.1; q.y += (q.ty - q.y) * 0.1; q.t--; }
+  c.parts = c.parts.filter((q) => q.t > 0);
+  if (t === RN_FIRE - 14) sfx('charge');
+  if (t === RN_FIRE - 1) { hitStop = 4; sfx('suck'); }
+  const src = rnSource(c), defense = k === 'eng';
+  if (!defense && t < RN_FIRE) { ball.x = src.x; ball.y = src.y; ball.vx = 0; ball.vy = 0; ball.rot += 0.25; }
+  if (t === RN_FIRE) {
+    heavy(src.x, src.y, k === 'kor' ? 0.9 : 2.0); sfx('flight', 1, 0.7); P.state = JUMP; P.vy = 0;
+    if (k === 'eng') { P.blockT = 150; P.blockMode = 'grammar'; popups.push({ text: '문법 교정 방화벽 6초!', x: GW / 2, y: 168, t: 50, color: '#ff4dff' }); cine = null; return; }
+    if (k === 'math') { c.path = rnPath(c); c.seg = 0; return; }
+    ball.x = src.x; ball.y = src.y;
+    if (k === 'kor') { T.freezeT = 38; releaseBall(NET_X + s * 46, 16); popups.push({ text: '문맥 오독! 1.5초 뇌정지', x: GW / 2, y: 168, t: 50, color: '#ff5050' }); }
+    if (k === 'sci') { T.mana = 0; T.slowT = 50; releaseBall(T.side === 0 ? mn : mx, 9); sfx('explode'); popups.push({ text: '촉매 반응! 상대 마나(스태미나) 0 + 2초 감속', x: GW / 2, y: 168, t: 50, color: '#c08aff' }); }
+    if (k === 'soc') { // 버프 전부 몰수 + 4초 스킬 금지
+      for (const f of ['fastT', 'ampT', 'jumpT', 'guardT', 'blockT', 'fwT', 'whirlT', 'sightT', 'pullT']) T[f] = 0;
+      T.matrixGuard = false; T.courtGuard = false; if (CHARACTERS[T.char].skill === 'giant' || CHARACTERS[T.char].skill === 'whirl') T.skillT = 0;
+      if (party && party.side === T.side) party.caster.skillT = 0;
+      T.silenceT = Math.max(T.silenceT || 0, 100);
+      releaseBall(Math.max(mn, Math.min(mx, T.x + (T.x - mn > mx - T.x ? -60 : 60))), 12); sfx('thud');
+      popups.push({ text: '몰수 승인! 버프 전부 몰수 + 4초 스킬 금지', x: GW / 2, y: 168, t: 50, color: '#ffc83c' });
+    }
+    cine = null; return;
+  }
+  if (k === 'math' && t > RN_FIRE && c.path) { // 2번 직각 굴절
+    const SEG = 6, i = Math.min(2, Math.floor((t - RN_FIRE - 1) / SEG)), q = Math.min(1, ((t - RN_FIRE) - i * SEG) / SEG), a = c.path[i], b = c.path[i + 1], px = ball.x, py = ball.y;
+    ball.x = a.x + (b.x - a.x) * q; ball.y = a.y + (b.y - a.y) * q; ball.vx = ball.x - px; ball.vy = ball.y - py; ball.rot += 0.5; ball.fx = '255,140,0'; pushRibbon(px, py);
+    if (q >= 1 && i < 2 && c.seg !== i + 1) { c.seg = i + 1; heavy(b.x, b.y, 1.0); sfx('snap'); }
+    if (q >= 1 && i === 2) { ball.vx = s * 1.2; ball.vy = 7; ball.flight = null; ball.unblockable = false; ball.power = true; ball.fx = null; ball.ribbon = [];
+      popups.push({ text: 'SOLUTION COMPLETE ✓', x: GW / 2, y: 168, t: 50, color: '#b07cff' }); cine = null; }
+  }
+}
+
+function rnCam(c) {
+  const t = c.t, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, H = CAM_HOME;
+  if (!c.init) return H;
+  const ly = P_GROUND_Y - 85, close = { x: P.x, y: ly - 14, z: 3.4 };
+  let keys;
+  if (k === 'math') keys = [[0, H], [RN_B, { x: 216, y: 140, z: 0.95, r: s * 0.04 }], [RN_B + 25, { x: (P.x + T.x) / 2, y: 130, z: 1.2 }], [RN_FIRE - 10, close], [RN_FIRE, { ...close, z: 3.8 }], [RN_FIRE + 1, H]];
+  else if (k === 'kor') keys = [[0, H], [RN_B, { x: T.x - s * 20, y: T.y - 20, z: 2.0, r: s * 0.03 }], [RN_FIRE - 14, { x: T.x - s * 20, y: T.y - 20, z: 2.3 }], [RN_FIRE - 4, close], [RN_FIRE, close], [RN_FIRE + 1, H]];
+  else if (k === 'eng') keys = [[0, H], [RN_B, { x: NET_X, y: 140, z: 1.3 }], [RN_FIRE - 14, { x: NET_X, y: 120, z: 1.5 }], [RN_FIRE - 4, close], [RN_FIRE, close], [RN_FIRE + 1, H]];
+  else if (k === 'sci') keys = [[0, H], [RN_B, { x: P.x + s * 24, y: ly - 40, z: 2.4 }], [RN_FIRE - 14, { x: P.x + s * 24, y: ly - 40, z: 2.8, r: s * 0.05 }], [RN_FIRE - 4, close], [RN_FIRE, close], [RN_FIRE + 1, H]];
+  else keys = [[0, H], [RN_B, { x: NET_X, y: 130, z: 1.15 }], [RN_FIRE - 14, { x: T.x, y: T.y - 20, z: 1.8 }], [RN_FIRE - 4, close], [RN_FIRE, close], [RN_FIRE + 1, H]];
+  keys.push([RN_END, H]);
+  return camKeys(t, keys);
+}
+
+function drawRinaWorld() {
+  const c = cine, t = c.t, P = c.caster, T = c.target, sk = c.sk, s = P.side === 0 ? 1 : -1, key = sk.key;
+  if (!c.init) return;
+  const k = Math.min(1, t / 6), a1 = Math.min(1, Math.max(0, (t - 4) / 14)), src = rnSource(c);
+  if (key === 'math') {
+    ctx.fillStyle = `rgba(14,4,30,${0.92 * k})`; ctx.fillRect(-600, -600, 1650, 1500);
+    persGrid('#8a2be2', a1 * 0.8, 200);
+    const o = { x: 60, y: 250 }; ctx.save(); ctx.globalAlpha = a1; ctx.strokeStyle = '#d6a8ff'; ctx.lineWidth = 2; ctx.shadowColor = '#8a2be2'; ctx.shadowBlur = 10; // 3D 축
+    for (const [dx, dy, lab] of [[360, 0, 'x'], [0, -230, 'y'], [-50, 40, 'z']]) { ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x + dx, o.y + dy); ctx.stroke(); neon(lab, o.x + dx * 1.04, o.y + dy * 1.04, 12, '#ffffff'); }
+    ctx.restore();
+    if (t >= RN_B) { // 주황 f(x) 3차 함수 곡선 + 미분식
+      const pr = Math.min(1, (t - RN_B) / 25); ctx.save(); ctx.strokeStyle = '#ff8c00'; ctx.lineWidth = 3; ctx.shadowColor = '#ff8c00'; ctx.shadowBlur = 14; ctx.beginPath();
+      for (let i = 0; i <= 60 * pr; i++) { const u = i / 60 * 2 - 1, x = 40 + i / 60 * 360, y = 150 - (u * u * u - 0.6 * u) * 160; ctx[i ? 'lineTo' : 'moveTo'](x, y); } ctx.stroke(); ctx.restore();
+      neon("f'(x) = 3x² − 0.6 = 0", 216, 50, 14, '#ffb050'); neon('∫ f(x)dx  ·  lim Δx→0', 216, 70, 9, '#d6a8ff');
+      const pth = rnPath(c); ctx.save(); ctx.strokeStyle = 'rgba(255,140,0,.6)'; ctx.setLineDash([5, 4]); ctx.lineDashOffset = -t; ctx.lineWidth = 2; ctx.beginPath(); pth.forEach((q, i) => ctx[i ? 'lineTo' : 'moveTo'](q.x, q.y)); ctx.stroke(); ctx.restore();
+    }
+  }
+  if (key === 'kor') { // 훈민정음 결계 + 비문학 지문 홀로그램
+    ctx.fillStyle = `rgba(236,224,196,${0.93 * k})`; ctx.fillRect(-600, -600, 1650, 1500);
+    for (let i = 0; i < 14; i++) { const x = ((i * 53 + t * 3) % 520) - 40, y = 30 + (i * 37) % 200; ctx.save(); ctx.globalAlpha = 0.5 * a1; brushText(JAMO[(i * 7) % JAMO.length], x, y, 16, '#3a2a18'); ctx.restore(); }
+    if (t >= RN_B) { const q = Math.min(1, (t - RN_B) / 10), bx = T.x - 90, by = T.y - 120;
+      ctx.save(); ctx.globalAlpha = q; ctx.fillStyle = 'rgba(255,253,245,.95)'; ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 1; ctx.fillRect(bx, by, 180, 112); ctx.strokeRect(bx, by, 180, 112);
+      ctx.font = '8px "Malgun Gothic", serif'; ctx.fillStyle = '#222'; ctx.textAlign = 'left'; KOR_TEXT.forEach((l, i) => ctx.fillText(l, bx + 8, by + 16 + i * 13));
+      const pr = Math.min(1, (t - RN_B - 12) / 10); if (pr > 0) { ctx.strokeStyle = '#d42020'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(bx + 60, by + 82, 56 * pr, 9, 0, 0, 7); ctx.stroke(); ctx.font = 'bold 11px "Malgun Gothic", sans-serif'; ctx.fillStyle = '#d42020'; ctx.fillText('[출제 의도 오독]', bx + 96, by + 104); }
+      ctx.restore(); }
+  }
+  if (key === 'eng') { // 네온 마젠타 알파벳 방화벽
+    ctx.fillStyle = `rgba(20,0,24,${0.85 * k})`; ctx.fillRect(-600, -600, 1650, 1500);
+    if (t >= 8) { const h = Math.min(1, (t - 8) / 14) * 270; ctx.save(); ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center';
+      for (let col = -2; col <= 2; col++) for (let y = 276; y > 276 - h; y -= 12) { ctx.fillStyle = `rgba(255,0,255,${0.4 + ((y + col * 7 + t) % 24) / 40})`; ctx.shadowColor = '#ff00ff'; ctx.shadowBlur = 8; ctx.fillText('ABCDEFGHIJKLMNOPQRSTUVWXYZ'[(Math.floor(y / 12) + col * 5 + Math.floor(t / 3)) % 26], NET_X + col * 9, y); }
+      ctx.restore(); }
+    if (t >= RN_B + 10) { const pr = Math.min(1, (t - RN_B - 10) / 8); ctx.save(); ctx.strokeStyle = '#ff2020'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(NET_X - 120, 110); ctx.lineTo(NET_X - 120 + 240 * pr, 106); ctx.stroke(); ctx.restore();
+      if (pr >= 1) { text('SYNTAX ERROR:', NET_X, 92, 12, '#ff4040'); text('SUBJECT-VERB MISMATCH', NET_X, 128, 11, '#ff4040'); } }
+  }
+  if (key === 'sci') { // 주기율표 링 + 원자 궤도 + 보라 플라즈마
+    ctx.fillStyle = `rgba(10,4,26,${0.9 * k})`; ctx.fillRect(-600, -600, 1650, 1500);
+    if (t >= 6) { const q = Math.min(1, (t - 6) / 12);
+      ctx.save(); ctx.translate(src.x, src.y); ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+      for (let i = 0; i < 20; i++) { const an = i / 20 * 6.28 + t * 0.06, r = 70 * q; ctx.fillStyle = 'rgba(40,10,70,.9)'; ctx.fillRect(Math.cos(an) * r - 8, Math.sin(an) * r * 0.45 - 7, 16, 13); ctx.strokeStyle = '#c08aff'; ctx.lineWidth = 0.8; ctx.strokeRect(Math.cos(an) * r - 8, Math.sin(an) * r * 0.45 - 7, 16, 13); ctx.fillStyle = '#f0e0ff'; ctx.fillText(ELEMENTS[i], Math.cos(an) * r, Math.sin(an) * r * 0.45 + 3); }
+      for (let o = 0; o < 3; o++) { ctx.save(); ctx.rotate(o * 1.05 + t * 0.02); ctx.strokeStyle = 'rgba(200,160,255,.8)'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.ellipse(0, 0, 40 * q, 13 * q, 0, 0, 7); ctx.stroke(); const ea = t * 0.25 + o * 2; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(Math.cos(ea) * 40 * q, Math.sin(ea) * 13 * q, 2.5, 0, 7); ctx.fill(); ctx.restore(); }
+      if (t >= RN_B) { const pg = ctx.createRadialGradient(0, 0, 2, 0, 0, 34); pg.addColorStop(0, 'rgba(255,240,255,1)'); pg.addColorStop(0.5, 'rgba(170,90,255,.7)'); pg.addColorStop(1, 'rgba(90,0,200,0)'); ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(0, 0, 34, 0, 7); ctx.fill(); }
+      ctx.restore(); neon('6.022 × 10²³ mol⁻¹', src.x, src.y - 50, 10, '#e0c0ff'); }
+  }
+  if (key === 'soc') { // 금빛 헌법전 + 정의의 저울 + 몰수 도장
+    const g = ctx.createLinearGradient(0, -100, 0, 300); g.addColorStop(0, `rgba(40,26,0,${0.9 * k})`); g.addColorStop(1, `rgba(90,60,10,${0.9 * k})`); ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
+    if (t >= 6) { const q = Math.min(1, (t - 6) / 12); ctx.save(); ctx.translate(NET_X, 130); ctx.scale(q, q); ctx.globalAlpha = q;
+      ctx.fillStyle = '#f6ecd0'; ctx.strokeStyle = '#c9a54a'; ctx.lineWidth = 2; ctx.shadowColor = '#ffd84d'; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.moveTo(0, -40); ctx.quadraticCurveTo(-40, -50, -80, -40); ctx.lineTo(-80, 40); ctx.quadraticCurveTo(-40, 30, 0, 40); ctx.quadraticCurveTo(40, 30, 80, 40); ctx.lineTo(80, -40); ctx.quadraticCurveTo(40, -50, 0, -40); ctx.fill(); ctx.stroke();
+      ctx.shadowBlur = 0; brushText('大韓民國', -40, -10, 12, '#7a5a10'); brushText('憲法', -40, 10, 14, '#7a5a10');
+      ctx.font = '7px "Malgun Gothic", serif'; ctx.fillStyle = '#5a4210'; ctx.textAlign = 'center'; ['제1조 ① 대한민국은', '민주공화국이다.', '② 모든 권력은', '국민으로부터 나온다.'].forEach((l, i) => ctx.fillText(l, 40, -18 + i * 11));
+      ctx.restore(); drawScales(NET_X, 50, 0.9, Math.sin(t * 0.15) * 0.25, a1); }
+    if (t >= RN_B + 8) for (let i = 0; i < 4; i++) { const q = Math.min(1, (t - RN_B - 8 - i * 5) / 6); if (q <= 0) continue; const x = T.x + Math.cos(i * 1.6) * 30 * q, y = T.y - 30 + Math.sin(i * 1.6) * 24 * q;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(-0.2 + i * 0.15); ctx.scale(1 + (1 - q), 1 + (1 - q)); ctx.strokeStyle = '#e0103c'; ctx.lineWidth = 2; ctx.strokeRect(-24, -9, 48, 18); ctx.fillStyle = '#e0103c'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(i % 2 ? 'MUTE' : 'ILLEGAL', 0, 4); ctx.restore(); }
+  }
+  for (const q of c.parts) { ctx.save(); ctx.globalAlpha = q.t / 22; ctx.font = 'bold 9px sans-serif'; ctx.fillStyle = `rgb(${sk.col})`; ctx.textAlign = 'center'; ctx.fillText(q.ch, q.x, q.y); ctx.restore(); }
+  if (key !== 'eng' && t > RN_FIRE - 14 && t < RN_FIRE) chargeFX(src.x, src.y, (t - (RN_FIRE - 14)) / 14, sk.col);
+  // 보랏빛 1등급 오라
+  const gl = ctx.createRadialGradient(P.x, P.y - 14, 4, P.x, P.y - 14, 60); gl.addColorStop(0, 'rgba(180,100,255,.6)'); gl.addColorStop(1, 'rgba(120,40,220,0)'); ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(P.x, P.y - 14, 60, 0, 7); ctx.fill();
+  drawPlayer(P); text('1등급', P.x, P.y - 52, 8, '#e0c0ff');
+  if (key === 'kor' && t >= RN_B) { ctx.save(); ctx.translate((Math.random() - 0.5) * 1.5, 0); drawPlayer(T); ctx.restore(); text('???', T.x, T.y - 50, 10, '#d42020'); } else drawPlayer(T);
+  if (key !== 'eng') drawBall();
+}
+
+function drawRinaUI(c) {
+  const t = c.t, sk = c.sk, key = sk.key, k = Math.min(1, t / 6), dark = key === 'kor';
+  if (key === 'kor' && t >= 4) hanji(0.4 * Math.min(1, t / 10));
+  if (t < RN_B) { // 성적표 컷
+    const q = Math.min(1, t / 6); ctx.save(); ctx.globalAlpha = q * (t > RN_B - 6 ? (RN_B - t) / 6 : 1);
+    ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.fillRect(GW / 2 - 110, 70, 220, 120); ctx.strokeStyle = '#8a2be2'; ctx.lineWidth = 2; ctx.strokeRect(GW / 2 - 110, 70, 220, 120);
+    text('대학수학능력시험 성적통지표', GW / 2, 88, 10, '#3a1a60');
+    ['국어', '수학', '영어', '사회', '과학'].forEach((sub, i) => { const x = GW / 2 - 88 + i * 44; ctx.fillStyle = sub === sk.subj ? 'rgba(138,43,226,.25)' : 'rgba(0,0,0,.05)'; ctx.fillRect(x - 18, 100, 36, 70); text(sub, x, 114, 9, '#3a1a60'); text('100', x, 140, 12, '#8a2be2'); text('1등급', x, 160, 8, '#d42020'); });
+    text('송리나', GW / 2, 184, 9, '#333'); ctx.restore();
+  }
+  if (key === 'sci' && t >= RN_FIRE - 1 && t < RN_FIRE + 3) invertFlash();
+  if (key === 'soc' && t >= RN_FIRE - 10 && t < RN_FIRE + 6) { const q = Math.min(1, (t - RN_FIRE + 10) / 4), sc = 1 + (1 - q) * 1.5; ctx.save(); ctx.translate(GW / 2, GH / 2); ctx.scale(sc, sc); ctx.rotate(-0.12); ctx.globalAlpha = q; ctx.strokeStyle = '#e0103c'; ctx.lineWidth = 4; ctx.strokeRect(-70, -24, 140, 48); ctx.fillStyle = '#e0103c'; ctx.font = 'bold 24px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('몰수 승인', 0, 9); ctx.restore(); }
+  ctx.save(); ctx.globalAlpha = k;
+  text(sk.title, GW / 2, 22, 12, dark ? '#7a1010' : `rgb(${sk.col})`); text(sk.en, GW / 2, 34, 8, dark ? '#333' : '#fff'); text('MYSTIC', GW / 2, 45, 7, '#d080ff');
+  if (t >= RN_B) { const ln = sk.line, n = Math.max(0, Math.min(ln.length, Math.floor((t - RN_B) * 1.8))); ctx.font = 'bold 11px "Malgun Gothic", sans-serif'; const w = ctx.measureText(ln).width + 16; ctx.fillStyle = 'rgba(30,0,50,.75)'; ctx.fillRect(GW / 2 - w / 2, 262, w, 17); text(ln.slice(0, n), GW / 2, 274, 11, '#fff'); }
   ctx.restore();
 }
 
@@ -3169,6 +3342,7 @@ function mathTaunt(kind, p) {
   if (sk === 'jmw') str = JM_TAUNT[kind];
   if (sk === 'gm') str = kind === 'error' && Math.random() < 0.5 ? GM_TAUNT.win : GM_TAUNT[kind];
   if (sk === 'jjh') { const v = JJ_TAUNT[isFem(players[1 - p.side]) ? 'f' : 'm'][kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
+  if (sk === 'rina') { const v = RN_TAUNT[kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
   if (sk === 'yean') { const v = YA_TAUNT[kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
   if (sk === 'cmj') {
     const o = players[1 - p.side], vs = CM_VS[CHARACTERS[o.char].skill];
@@ -4816,6 +4990,7 @@ function drawBeam() {
   if (cine.kind === 'jjh') { drawJjhWorld(); return; }
   if (cine.kind === 'cmj') { drawCmjWorld(); return; }
   if (cine.kind === 'yean') { drawYeanWorld(); return; }
+  if (cine.kind === 'rina') { drawRinaWorld(); return; }
   if (cine.intro < INTRO_FRAMES) { drawCutIn(); return; }
   const t = cine.t, tx = cine.target.x;
   // 화면 어둡게
@@ -4905,6 +5080,9 @@ function updateSelect() {
 const powerPressed = () => pressed.has('KeyZ') || pressed.has('Enter');
 
 function update() {
+  if ((state === 'play' || state === 'slow' || state === 'fadeOut' || state === 'ready') && pressed.has('KeyM') && is308()) { /* M = 경기 중단하고 308호 엔딩 */
+    winner = players[0].score >= players[1].score ? 0 : 1; players[winner].state = WIN; players[1 - winner].state = LOSE; cine = null; fade = 0; state = 'e308'; e3Start();
+  }
   if (restartReq) {
     // 백스페이스 3번 → 맨 처음 타이틀 화면으로
     restartReq = false; fade = 0; cine = null;
@@ -4959,7 +5137,9 @@ function update() {
     fade = Math.max(0, fade - 1 / 17);
     if (++timer >= 71) { fade = 0; state = 'play'; }
   } else if (state === 'play') {
-    if (cine && cine.kind === 'yean') {
+    if (cine && cine.kind === 'rina') {
+      updateRina();
+    } else if (cine && cine.kind === 'yean') {
       updateYean();
     } else if (cine && cine.kind === 'cmj') {
       updateCmj();
@@ -5023,6 +5203,8 @@ function update() {
     fade = Math.max(0, fade - 1 / 16);
     players.forEach((p) => p.anim++);
     if (++timer >= 30) { fade = 0; state = 'play'; }
+  } else if (state === 'e308') {
+    if (e3) e3Update(); else state = 'over';
   } else if (state === 'over') {
     step(false);
     timer++;
@@ -5123,7 +5305,7 @@ function drawSpriteChar(p, im, ch) {
   ctx.translate(0, bob);
   if (st === LOSE) { ctx.translate(0, 32); ctx.rotate(0.2); ctx.translate(0, -32); }
   if (im) {
-    ctx.scale(p.side === 0 ? 1 : -1, 1); // 사진은 반전 안 되게
+    ctx.scale(p.side === 0 || ch.faceNet ? 1 : -1, 1); /* 사진은 반전 안 되게 (faceNet이면 항상 네트 쪽을 봄) */
     ctx.drawImage(im, -w / 2, 32 - h, w, h);
   } else {
     ctx.fillStyle = p.color;
@@ -5470,6 +5652,7 @@ function drawSelect() {
 function draw() {
   ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, GW, GH);
+  if (state === 'e308' && e3) { drawE308(); return; }
   // 시네마틱 카메라 (줌·이동·회전)
   const cam = cineCam();
   if (cam) {
@@ -5485,7 +5668,7 @@ function draw() {
   if (isMenu()) drawCrowd();
   else if (state !== 'select') { players.forEach(drawMatrixField); players.forEach(drawPlayer); drawMatrixHits(); }
   if (state !== 'select' && state !== 'title') drawPartyField();
-  if (!isMenu() && state !== 'select' && !(cine && cine.kind === 'history' && cine.t < HIST_FIRE) && !(cine && (cine.kind === 'kim' || cine.kind === 'gm' || cine.kind === 'jmw' || cine.kind === 'jjh' || cine.kind === 'cmj' || cine.kind === 'yean'))) drawBall();
+  if (!isMenu() && state !== 'select' && !(cine && cine.kind === 'history' && cine.t < HIST_FIRE) && !(cine && (cine.kind === 'kim' || cine.kind === 'gm' || cine.kind === 'jmw' || cine.kind === 'jjh' || cine.kind === 'cmj' || cine.kind === 'yean' || cine.kind === 'rina'))) drawBall();
   drawLiteParts();
   drawFakes(); drawStrikes();
   drawBeam();
@@ -5505,6 +5688,7 @@ function draw() {
     text(players[1].score, GW - 30, 36, 30, '#ffd6d3');
   }
   if (!isMenu()) players.forEach(drawMana);
+  if (!isMenu() && state !== 'over' && state !== 'select' && is308()) { ctx.fillStyle = 'rgba(20,6,20,.6)'; ctx.fillRect(GW / 2 - 52, 284, 104, 14); ctx.globalAlpha = 0.75 + Math.sin(performance.now() / 300) * 0.2; text('M = 308호 엔딩 보기', GW / 2, 294, 9, '#ffd0e0'); ctx.globalAlpha = 1; }
   drawPopups();
 
   if (state === 'title' || state === 'startFadeOut') {
@@ -5717,3 +5901,412 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+// ===== 엔딩 컷씬: 308호의 마지막 점호 (김예안 vs 김두현 경기가 끝나면 나옴) =====
+// 산나비 느낌: 도트(작은 캔버스를 크게 키움) + 색수차 + 글리치 + 레터박스 + 낙엽
+let e3 = null;
+const E3_W = 216, E3_H = 152, E3_FLOOR = 112;
+const E3_LEAF = ['#d9622b', '#e8a33a', '#b8342a', '#f2c14e', '#8c3b1f', '#c9541f'];
+const E3_LS = [['.##..', '####.', '.##.#'], ['...#', '.##.', '###.', '##..'], ['####.', '....#'], ['##..', '###.', '.##.', '...#']].map((f) => { const o = []; f.forEach((r, y) => [...r].forEach((c, x) => { if (c === '#') o.push([x, y]); })); return o; }); /* 낙엽 도트 모양 (빙글빙글 4프레임) */
+const E3_TALK = [
+  { sp: 'y', lines: ['......308호 문 열 때마다 나던 그 거지 같은 꼬린내.', '이제... 다시는 안 나겠네.'] },
+  { sp: 'd', lines: ['...미안하다, 예안아.', '빨래도 자주 하고... 냄새 안 나게 하려고 진짜 노력했는데......', '나 때문에 너까지 쫓겨나게 돼서...'] },
+  { sp: 'y', two: true, glitch: true, tear: true, lines: ['......쓸데없는 소리 하지 마, 이 멍청아.', '방 넓어져서 존나 시원하다...... 시원해서 미치겠다고, 씨발......'] },
+  { sp: 'd', two: true, lines: ['......고마웠어. 308호 룸메 해줘서.'] },
+];
+const E3_LOG = ['[ SYSTEM LOG : 기숙사 308호 / 벌점 25점 초과 ]', '[ 상태: 강제 퇴실 수속 집행 중... ]'];
+const E3_BYE = ['잘 가라!!', '308호 잊지 마!', '연락해라!', '냄새는 두고 가...', '울지 마 예안아', '양말은 챙겨 가!', '보고 싶을 거다', '308호 영원하라!'];
+function is308() { const s = players.map((p) => (CHARACTERS[p.char] || {}).skill); return s.includes('yean') && s.includes('sock'); }
+function e3Canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function e3Leaf(any) { return { x: Math.random() * (E3_W + 40) - 20, y: any ? Math.random() * E3_H : -6 - Math.random() * 30, vy: 0.25 + Math.random() * 0.3, ph: Math.random() * 7, sw: 0.3 + Math.random() * 0.5, vx: 0, big: Math.random() < 0.25, col: E3_LEAF[Math.floor(Math.random() * E3_LEAF.length)], f: Math.floor(Math.random() * 4) }; }
+
+function e3Start() {
+  const yi = players.findIndex((p) => CHARACTERS[p.char].skill === 'yean');
+  e3 = { t: 0, ph: 'glitch', pt: 0, yi, di: 1 - yi, leaves: [], rain: [], petals: [], shards: [], talk: 0, line: 0, ch: 0, hold: 0, gl: 0, sh: 0, tear: null, spr: {}, por: {}, bye: [],
+    pix: e3Canvas(E3_W, E3_H), cr: e3Canvas(E3_W, E3_H), cc: e3Canvas(E3_W, E3_H) };
+  for (let i = 0; i < 42; i++) e3.leaves.push(e3Leaf(true));
+  for (let i = 0; i < 70; i++) e3.rain.push({ x: Math.random() * E3_W, y: Math.random() * E3_H, l: 3 + Math.random() * 4 });
+  e3Sound('static');
+  e3Music();
+}
+function e3Go(ph) { e3.ph = ph; e3.pt = 0; }
+function e3End() { e3StopAudio(); e3 = null; state = 'over'; timer = 20; players.forEach((p) => { p.y = P_GROUND_Y; }); }
+
+// ----- 소리: 고장 난 TV 지지직 + 슬픈 신스 피아노 + 빗소리 -----
+function e3Sound(type) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const a = audioCtx, now = a.currentTime;
+    if (type === 'blip') { // 비-빅 타자기
+      const o = a.createOscillator(), g = a.createGain(); o.type = 'square'; e3.bl = e3.bl === 1250 ? 1650 : 1250; o.frequency.setValueAtTime(e3.bl, now);
+      g.gain.setValueAtTime(0.03, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.04); o.connect(g); g.connect(a.destination); o.start(now); o.stop(now + 0.05); return;
+    }
+    if (type === 'static') { // 치이이- 파직
+      const len = Math.floor(a.sampleRate * 0.7), b = a.createBuffer(1, len, a.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (Math.random() < 0.04 ? 1 : 0.3) * (1 - i / len);
+      const n = a.createBufferSource(); n.buffer = b; const f = a.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 900; const g = a.createGain(); g.gain.value = 0.55;
+      n.connect(f); f.connect(g); g.connect(a.destination); n.start(now); sfx('zap', 0.5); return;
+    }
+    if (type === 'shatter') { [2200, 2900, 3700].forEach((hz, i) => { const o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = hz; g.gain.setValueAtTime(0.06, now + i * 0.04); g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.5); o.connect(g); g.connect(a.destination); o.start(now + i * 0.04); o.stop(now + i * 0.04 + 0.55); }); return; }
+    if (type === 'off') { const o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(9000, now); o.frequency.exponentialRampToValueAtTime(200, now + 0.5); g.gain.setValueAtTime(0.06, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.55); o.connect(g); g.connect(a.destination); o.start(now); o.stop(now + 0.6); sfx('thud', 0.6); return; }
+  } catch (err) {}
+}
+function e3Music() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const a = audioCtx, now = a.currentTime + 0.5;
+    const m = a.createGain(); m.gain.setValueAtTime(0, a.currentTime); m.gain.linearRampToValueAtTime(1, now + 1.5); m.connect(a.destination); e3.master = m;
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2000; lp.connect(m); // 아날로그처럼 먹먹하게
+    // 빗소리
+    const len = a.sampleRate * 2, buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (Math.random() < 0.003 ? 2.5 : 0.5);
+    const rn = a.createBufferSource(); rn.buffer = buf; rn.loop = true; const rf = a.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 1600; rf.Q.value = 0.4;
+    const rg = a.createGain(); rg.gain.value = 0.06; rn.connect(rf); rf.connect(rg); rg.connect(m); rn.start(); e3.rainSrc = rn;
+    const hz = (n) => 440 * Math.pow(2, (n - 69) / 12);
+    const note = (n, t0, dur, v, type = 'triangle') => {
+      const o = a.createOscillator(), o2 = a.createOscillator(), g = a.createGain(); o.type = type; o2.type = 'sine'; o.frequency.value = hz(n); o2.frequency.value = hz(n) * 1.004;
+      g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+      o.connect(g); o2.connect(g); g.connect(lp); o.start(t0); o2.start(t0); o.stop(t0 + dur + 0.05); o2.stop(t0 + dur + 0.05);
+    };
+    // Am - F - C - G - Am - F - Em - Am (느리고 슬프게)
+    const prog = [[45, [57, 60, 64, 67]], [41, [53, 57, 60, 64]], [48, [55, 60, 64, 67]], [43, [55, 59, 62, 67]], [45, [57, 60, 64, 67]], [41, [53, 57, 60, 64]], [40, [55, 59, 64, 67]], [45, [57, 60, 64, 69]]];
+    const mel = [[76, 0, 74, 1.5], [72, 0, 69, 1], [67, 0, 72, 1.5], [71, 0], [76, 0, 77, 1, 76, 1.5], [72, 0, 69, 1.5], [71, 0, 67, 1], [69, 0]];
+    const bar = 2.4;
+    for (let k = 0; k < 20; k++) {
+      const [b, arp] = prog[k % 8], t0 = now + k * bar;
+      note(b, t0, bar * 1.3, 0.1, 'sine');
+      arp.forEach((n, i) => { note(n, t0 + (i * bar) / 8, 1.6, 0.04); note(n + (i === 3 ? 0 : 12), t0 + bar / 2 + (i * bar) / 8, 1.3, 0.022); });
+      const ml = mel[k % 8]; if (k >= 1) for (let i = 0; i < ml.length; i += 2) note(ml[i], t0 + ml[i + 1] * (bar / 2), 2.4, 0.055);
+    }
+  } catch (err) {}
+}
+function e3StopAudio() {
+  try { const a = audioCtx, m = e3 && e3.master; if (!a || !m) return; m.gain.cancelScheduledValues(a.currentTime); m.gain.setValueAtTime(m.gain.value, a.currentTime); m.gain.linearRampToValueAtTime(0, a.currentTime + 0.8); const r = e3.rainSrc; setTimeout(() => { try { r && r.stop(); m.disconnect(); } catch (err) {} }, 1000); } catch (err) {}
+}
+
+// ----- 진행 -----
+function e3Speed() { const e = e3; return e.ph === 'glitch' ? 0.02 : e.ph === 'float' ? 0.05 + Math.min(1, e.pt / 90) * 0.15 : e.ph === 'impact' ? (e.pt < 6 ? 0.1 : 1) : e.ph === 'bye' ? 0.8 : 0.55; }
+function e3Update() {
+  const e = e3; e.t++; e.pt++;
+  players.forEach((p) => p.anim++);
+  const sp = e3Speed();
+  for (const l of e.leaves) {
+    l.ph += 0.05 * sp; l.x += (Math.sin(l.ph) * l.sw + 0.15 + l.vx) * sp; l.y += l.vy * sp * (0.6 + 0.6 * Math.abs(Math.cos(l.ph))) + l.vx * 0; l.vx *= 0.96;
+    if (l.y > E3_H + 6 || l.x > E3_W + 40 || l.x < -40) Object.assign(l, e3Leaf(false));
+  }
+  for (const r of e.rain) { r.y += 5 * sp + 0.05; r.x -= 1.1 * sp; if (r.y > E3_H) { r.y = -5; r.x = Math.random() * (E3_W + 40); } }
+  for (const q of e.petals) { q.ph += 0.08 * sp; q.x += (q.vx + Math.sin(q.ph) * 0.3) * sp; q.y += q.vy * sp; q.t -= sp; }
+  e.petals = e.petals.filter((q) => q.t > 0);
+  for (const q of e.shards) { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.t--; }
+  e.shards = e.shards.filter((q) => q.t > 0);
+  for (const b of e.bye) { b.t--; b.y -= 0.25; }
+  e.bye = e.bye.filter((b) => b.t > 0);
+  if (e.gl > 0) e.gl--;
+  e.sh *= 0.85;
+  const adv = powerPressed();
+  if (pressed.has('Escape')) { e3End(); return; } // Esc = 컷씬 건너뛰기
+  if (e.ph === 'glitch') { if (e.pt >= 12) e3Go('float'); }
+  else if (e.ph === 'float') {
+    if (e.pt % 2 === 0) e.petals.push({ x: 20 + Math.random() * 176, y: E3_FLOOR - 1, vx: (Math.random() - 0.5) * 0.4, vy: -0.25 - Math.random() * 0.45, t: 150, ph: Math.random() * 7 });
+    if (e.pt >= 100 || (adv && e.pt > 30)) { e3Go('talk'); e.line = 0; e.ch = 0; e.hold = 0; sfx('buzz', 0.5); }
+  } else if (e.ph === 'talk') {
+    const T = E3_TALK[e.talk], L = T.lines[e.line];
+    if (T.glitch && Math.random() < 0.1) { e.gl = 2 + Math.floor(Math.random() * 3); }
+    if (e.ch < L.length) {
+      const before = Math.floor(e.ch); e.ch = Math.min(L.length, e.ch + 0.85);
+      if (Math.floor(e.ch) !== before && Math.floor(e.ch) % 2 === 0 && L[Math.floor(e.ch) - 1] !== ' ' && L[Math.floor(e.ch) - 1] !== '.') e3Sound('blip');
+      if (adv) e.ch = L.length;
+    } else {
+      e.hold++;
+      const last = e.line === T.lines.length - 1;
+      if (adv || e.hold > (last ? 62 : 36)) {
+        e.hold = 0; e.ch = 0; e.line++;
+        if (e.line >= T.lines.length) {
+          e.line = T.lines.length - 1; e.ch = 999;
+          if (T.tear) e3Go('tear');
+          else if (++e.talk >= E3_TALK.length) e3Go('impact');
+          else { e.line = 0; e.ch = 0; sfx('buzz', 0.4); }
+        }
+      }
+    }
+  } else if (e.ph === 'tear') {
+    if (e.pt === 1) { const p = e3PorBox(E3_TALK[e.talk], 'y'); e.tear = { x: p.x + p.s * 0.6, y: p.y + p.s * 0.5, vy: 0.15 }; }
+    if (e.tear) { e.tear.vy = Math.min(1.1, e.tear.vy + 0.035); e.tear.y += e.tear.vy; }
+    if (e.pt === 36 && e.tear) { // 눈물 → 픽셀 파편으로 산산조각
+      for (let i = 0; i < 18; i++) { const an = Math.random() * Math.PI * 2, v = 0.6 + Math.random() * 1.8; e.shards.push({ x: e.tear.x, y: e.tear.y, vx: Math.cos(an) * v, vy: Math.sin(an) * v - 1, t: 30 + Math.random() * 20, c: Math.random() < 0.5 ? '#bfe6ff' : '#ffffff' }); }
+      e.tear = null; e3Sound('shatter'); e.gl = 6;
+    }
+    if (e.pt >= 66) { e.talk++; e.line = 0; e.ch = 0; e3Go('talk'); }
+  } else if (e.ph === 'impact') {
+    if (e.pt === 1) sfx('suck');
+    if (e.pt === 6) { sfx('explode'); sfx('heavy'); sfx('boom'); e.sh = 9; for (const l of e.leaves) { l.vx += (l.x - 108) / 30 * 2.5; l.vy = Math.max(l.vy, 0.4); } for (let i = 0; i < 30; i++) e.shards.push({ px: 1, x: 108, y: E3_FLOOR, vx: (Math.random() - 0.5) * 6, vy: -Math.random() * 4, t: 40 + Math.random() * 30, c: Math.random() < 0.5 ? '#ff2a3a' : '#2a1626' }); }
+    if (e.pt === 26) { sfx('thud'); e.sh = 4; }
+    if (e.pt >= 110 || (adv && e.pt > 40)) { e3Go('crt'); e3Sound('off'); }
+  } else if (e.ph === 'crt') { if (e.pt >= 22) e3Go('room'); }
+  else if (e.ph === 'room') { if (e.pt >= 75 || (adv && e.pt > 20)) e3Go('bye'); }
+  else if (e.ph === 'bye') { // 기숙사 모두의 배웅 → 둘은 언덕 너머로
+    if (e.pt % 22 === 5 && e.pt < 190) { const others = CHARACTERS.map((_, i) => i).filter((i) => i !== players[e.yi].char && i !== players[e.di].char); const k = Math.floor(Math.random() * others.length); e.bye.push({ text: E3_BYE[Math.floor(Math.random() * E3_BYE.length)], slot: k % 6, t: 50, y: 0 }); }
+    if (e.pt >= 250 || (adv && e.pt > 60)) e3End();
+  }
+  pressed.clear();
+}
+
+// ----- 도트 그림 도우미 -----
+function e3Pixelize(im, w, h, tint) { // 사진 → 작은 도트 (색 단계 줄이고 차갑게)
+  const c = e3Canvas(w, h), g = c.getContext('2d'); g.drawImage(im, 0, 0, w, h);
+  try {
+    const d = g.getImageData(0, 0, w, h), a = d.data;
+    for (let i = 0; i < a.length; i += 4) {
+      if (a[i + 3] < 110) { a[i + 3] = 0; continue; } a[i + 3] = 255;
+      for (let k = 0; k < 3; k++) a[i + k] = Math.round(a[i + k] / 40) * 40;
+      a[i] = a[i] * 0.85 + tint[0]; a[i + 1] = a[i + 1] * 0.85 + tint[1]; a[i + 2] = a[i + 2] * 0.88 + tint[2];
+    }
+    g.putImageData(d, 0, 0);
+  } catch (err) {}
+  return c;
+}
+function e3Outline(src, col) {
+  const c = e3Canvas(src.width + 2, src.height + 2), g = c.getContext('2d');
+  for (const [dx, dy] of [[0, 1], [2, 1], [1, 0], [1, 2]]) g.drawImage(src, dx, dy);
+  g.globalCompositeOperation = 'source-in'; g.fillStyle = col; g.fillRect(0, 0, c.width, c.height); g.globalCompositeOperation = 'source-over'; g.drawImage(src, 1, 1); return c;
+}
+function e3Sprite(ci, sc, col = '#05030a', tint = [0, 6, 24]) {
+  const key = ci + ':' + sc + col; if (e3.spr[key]) return e3.spr[key];
+  const im = imgs['char' + ci], ch = CHARACTERS[ci]; if (!im) return null;
+  const w = Math.max(4, Math.round(ch.w * sc)), h = Math.max(4, Math.round(ch.h * sc));
+  return (e3.spr[key] = e3Outline(e3Pixelize(im, w, h, tint), col));
+}
+function e3DrawSpr(x, ci, cx, by, sc, alpha = 1, flip = false, col, tint) { // 아래 가운데 기준
+  const s = e3Sprite(ci, sc, col, tint); if (!s) return;
+  x.save(); x.globalAlpha = alpha; x.translate(Math.round(cx), Math.round(by)); if (flip) x.scale(-1, 1); x.drawImage(s, -Math.round(s.width / 2), -s.height); x.restore();
+}
+function e3Ball(x, cx, cy) {
+  x.fillStyle = '#05030a'; x.fillRect(cx - 4, cy - 3, 8, 6); x.fillRect(cx - 3, cy - 4, 6, 8);
+  x.fillStyle = '#f4f0ff'; x.fillRect(cx - 3, cy - 2, 6, 4); x.fillRect(cx - 2, cy - 3, 4, 6);
+  x.fillStyle = '#f2c14e'; x.fillRect(cx - 1, cy - 3, 1, 6); x.fillRect(cx + 1, cy - 2, 1, 4);
+}
+function e3Leaves(x, alpha = 1) {
+  x.globalAlpha = alpha;
+  for (const l of e3.leaves) {
+    const f = E3_LS[(l.f + Math.floor(l.ph * 1.3)) % 4], s = l.big ? 2 : 1;
+    x.fillStyle = l.col; for (const [px, py] of f) x.fillRect(Math.round(l.x) + px * s, Math.round(l.y) + py * s, s, s);
+  }
+  x.globalAlpha = 1;
+}
+
+// ----- 1~3막: 경기장 (멈춘 시간) -----
+function e3Scene(x) {
+  const e = e3, t = e.t, Y = players[e.yi], D = players[e.di];
+  const g = x.createLinearGradient(0, 0, 0, E3_H); g.addColorStop(0, '#070914'); g.addColorStop(0.55, '#1b1230'); g.addColorStop(1, '#2a1626'); x.fillStyle = g; x.fillRect(0, 0, E3_W, E3_H);
+  // 붉은 달
+  x.fillStyle = 'rgba(255,60,80,.12)'; x.beginPath(); x.arc(169, 33, 16, 0, 7); x.fill(); x.fillStyle = '#a8303e'; x.beginPath(); x.arc(169, 33, 10, 0, 7); x.fill(); x.fillStyle = '#c84050'; x.beginPath(); x.arc(166, 30, 5, 0, 7); x.fill();
+  // 먼 경기장 관중석 실루엣 + 꺼져 가는 불빛
+  for (let i = 0; i < 27; i++) { const h = 18 + Math.round(Math.abs(Math.sin(i * 1.7)) * 16); x.fillStyle = '#0d0a18'; x.fillRect(i * 8, E3_FLOOR - h, 8, h); if ((i * 7 + Math.floor(t / 20)) % 5 === 0) { x.fillStyle = i % 3 ? '#5a3a20' : '#6a2030'; x.fillRect(i * 8 + 3, E3_FLOOR - h + 4, 1, 1); } }
+  // 비
+  x.fillStyle = 'rgba(150,180,255,.32)'; for (const r of e.rain) { x.fillRect(Math.round(r.x), Math.round(r.y), 1, Math.round(r.l)); }
+  // 바닥
+  x.fillStyle = '#1a1420'; x.fillRect(0, E3_FLOOR, E3_W, E3_H - E3_FLOOR); x.fillStyle = '#4a2a3a'; x.fillRect(0, E3_FLOOR, E3_W, 1);
+  x.fillStyle = 'rgba(255,255,255,.07)'; x.fillRect(10, E3_FLOOR + 6, 196, 1); x.fillRect(0, E3_FLOOR + 14, E3_W, 1);
+  const ip = e.ph === 'impact' ? e.pt : -1, hit = ip >= 6;
+  // 네트 (공 박히면 사라짐)
+  if (!hit) { x.fillStyle = '#3a3040'; x.fillRect(107, 86, 2, E3_FLOOR - 86); x.fillStyle = '#8a8098'; x.fillRect(106, 85, 4, 2); }
+  // 사직서 조각 → 자줏빛 픽셀 꽃잎
+  for (const q of e.petals) { const k = q.t / 150; x.fillStyle = k > 0.8 ? '#e8e4f0' : ['#b04aff', '#ff4a9a', '#7a2cff', '#d86bff'][Math.floor(q.ph) % 4]; x.globalAlpha = Math.min(1, q.t / 30); x.fillRect(Math.round(q.x), Math.round(q.y), k > 0.8 ? 2 : 1, 1); }
+  x.globalAlpha = 1;
+  if (e.ph === 'float' || e.ph === 'glitch') { x.fillStyle = '#e8e4f0'; for (let i = 0; i < 9; i++) x.fillRect(24 + i * 19 + (i % 2) * 5, E3_FLOOR + 2 + (i % 3), 3, 2); }
+  // 둘의 위치: 허공에 둥둥 → 공을 향해 손을 뻗음
+  const ys = Y.side === 0 ? -1 : 1, ds = -ys, bob = Math.sin(t * 0.04) * 1.5;
+  let yx = 108 + ys * 30, dx = 108 + ds * 30, yy = 70 + bob, dy = 72 - bob, alpha = 1, bx = 108, by = 42;
+  if (e.ph === 'glitch' || (e.ph === 'float' && e.pt < 20)) { const q = e.ph === 'glitch' ? 0 : e.pt / 20, k = 1 - (1 - q) * (1 - q); yx = Y.x / 2 + (yx - Y.x / 2) * k; dx = D.x / 2 + (dx - D.x / 2) * k; yy = E3_FLOOR + (yy - E3_FLOOR) * k; dy = E3_FLOOR + (dy - E3_FLOOR) * k; }
+  if (ip >= 0) { const q = Math.min(1, ip / 6); yx += (108 + ys * 12 - yx) * q; dx += (108 + ds * 12 - dx) * q; yy -= q * 18; dy -= q * 18; if (ip >= 30) alpha = Math.max(0, 1 - (ip - 30) / 40); if (ip >= 6) { const k = Math.min(1, (ip - 6) / 5); by = 42 + (E3_FLOOR - 42) * k; } }
+  // 두현 뒤 씁쓸한 푸른 냄새 아지랑이
+  for (let i = 0; i < 26; i++) { const an = i * 0.24 + t * 0.02, r = 20 + Math.sin(t * 0.07 + i) * 3; x.fillStyle = `rgba(90,184,255,${(0.25 + 0.2 * Math.sin(t * 0.1 + i)) * alpha})`; x.fillRect(Math.round(dx + Math.cos(an) * r), Math.round(dy - 14 + Math.sin(an) * r * 0.9 - ((t * 0.3 + i * 5) % 12)), 1, 2); }
+  e3DrawSpr(x, Y.char, yx, yy, 0.5, alpha, false, '#2a0618');
+  e3DrawSpr(x, D.char, dx, dy, 0.5, alpha, false, '#061a2a');
+  if (!(ip >= 12)) e3Ball(x, bx, Math.round(by));
+  // 충돌: 바닥 파쇄 + 충격파 + 균열
+  if (hit) {
+    const q = ip - 6;
+    x.fillStyle = '#05030a'; x.fillRect(96, E3_FLOOR, 24, 3); x.fillRect(100, E3_FLOOR + 3, 16, 2);
+    x.fillStyle = '#ff2a3a'; for (let i = 0; i < 6; i++) { const len = Math.min(70, q * 6) * (0.5 + (i % 3) * 0.25), dir = i % 2 ? 1 : -1; let cx = 108, cy = E3_FLOOR + 1 + (i >> 1) * 4; for (let k = 0; k < len; k += 2) { cx += dir * 2; cy += (Math.sin(k * 0.7 + i) > 0.3 ? 1 : 0) * (i % 3 === 2 ? -0.3 : 0.3); x.fillRect(Math.round(cx), Math.round(cy), 2, 1); } }
+    for (let k = 0; k < 3; k++) { const r = q * 4 - k * 12; if (r > 0 && r < 140) { x.strokeStyle = `rgba(255,${k ? 255 : 60},${k ? 255 : 70},${Math.max(0, 1 - r / 140)})`; x.lineWidth = 1; x.beginPath(); x.ellipse(108, E3_FLOOR, r, r * 0.22, 0, 0, 7); x.stroke(); } }
+    if (q < 6) { x.fillStyle = `rgba(255,255,255,${1 - q / 6})`; x.fillRect(104, 0, 8, E3_FLOOR); }
+  }
+  for (const q of e.shards) if (q.px) { x.fillStyle = q.c; x.fillRect(Math.round(q.x), Math.round(q.y), 1, 1); }
+  // 대사 중에는 배경을 어둡게
+  if (e.ph === 'talk' || e.ph === 'tear') { x.fillStyle = 'rgba(4,2,10,.45)'; x.fillRect(0, 0, E3_W, E3_H); }
+  // "308호 퇴실 완료" 바닥 각인 (도트 글씨)
+  if (ip >= 24) {
+    const q = Math.min(1, (ip - 24) / 6), sc = 1 + (1 - q) * 1.6;
+    x.save(); x.translate(108, 70); x.scale(sc, sc); x.globalAlpha = q; x.textAlign = 'center'; x.font = 'bold 15px "Malgun Gothic", sans-serif';
+    x.fillStyle = '#05030a'; x.fillText('[ 308 호  퇴 실  완 료 ]', 1, 1 + 5); x.fillStyle = '#ffb0b8'; x.fillText('[ 308 호  퇴 실  완 료 ]', -1, -1 + 5); x.fillStyle = '#ff2a3a'; x.fillText('[ 308 호  퇴 실  완 료 ]', 0, 5);
+    x.fillStyle = '#ff2a3a'; for (let i = -100; i < 100; i += 3) { x.fillRect(i, -12, 2, 1); x.fillRect(i, 18, 2, 1); }
+    x.restore();
+  }
+}
+
+// ----- 4막: 텅 빈 308호 -----
+function e3Room(x) {
+  const e = e3, t = e.t;
+  const g = x.createLinearGradient(0, 0, 0, E3_H); g.addColorStop(0, '#120d1c'); g.addColorStop(1, '#1e1628'); x.fillStyle = g; x.fillRect(0, 0, E3_W, E3_H);
+  // 창문 (비 오는 밤) + 달빛
+  x.fillStyle = '#3a2c3a'; x.fillRect(128, 26, 56, 44); x.fillStyle = '#0d1630'; x.fillRect(130, 28, 52, 40); x.fillStyle = '#3a2c3a'; x.fillRect(155, 28, 2, 40); x.fillRect(130, 47, 52, 2);
+  x.fillStyle = 'rgba(160,190,255,.4)'; for (const r of e.rain) if (r.x > 130 && r.x < 182) x.fillRect(Math.round(r.x), 28 + Math.round(r.y % 40), 1, 2);
+  x.fillStyle = 'rgba(150,180,255,.07)'; x.beginPath(); x.moveTo(130, 68); x.lineTo(182, 68); x.lineTo(150, E3_FLOOR + 22); x.lineTo(90, E3_FLOOR + 22); x.fill();
+  // 문 + 308 명패
+  x.fillStyle = '#2a2030'; x.fillRect(16, 42, 34, E3_FLOOR - 42); x.fillStyle = '#3a2e44'; x.fillRect(18, 44, 30, E3_FLOOR - 44); x.fillStyle = '#c8b070'; x.fillRect(42, 78, 3, 2);
+  x.fillStyle = '#d8d0e0'; x.fillRect(24, 50, 18, 8); x.fillStyle = '#1a1420'; x.font = 'bold 7px monospace'; x.textAlign = 'center'; x.fillText('308', 33, 57);
+  // 빈 2층 침대 (매트리스 없음)
+  x.fillStyle = '#2c2236'; x.fillRect(62, 46, 2, E3_FLOOR - 46); x.fillRect(110, 46, 2, E3_FLOOR - 46); x.fillRect(62, 62, 50, 2); x.fillRect(62, 96, 50, 2); x.fillRect(62, 46, 50, 1);
+  // 바닥 (나무)
+  x.fillStyle = '#2a1d18'; x.fillRect(0, E3_FLOOR, E3_W, E3_H - E3_FLOOR); x.fillStyle = '#20160f'; for (let i = 0; i < 6; i++) x.fillRect(0, E3_FLOOR + 3 + i * 5, E3_W, 1);
+  // 바닥에 쌓인 낙엽
+  for (let i = 0; i < 12; i++) { x.fillStyle = E3_LEAF[i % 6]; x.fillRect(120 + ((i * 37) % 80), E3_FLOOR + 2 + ((i * 13) % 14), 2, 1); }
+  // 페브리즈 한 통
+  x.save(); x.translate(124, E3_FLOOR + 6); x.scale(2, 2); x.translate(-124, -(E3_FLOOR + 6));
+  const fx = 112, fy = E3_FLOOR + 4;
+  x.fillStyle = '#05030a'; x.fillRect(fx - 1, fy - 17, 10, 18); x.fillStyle = '#7fc8ff'; x.fillRect(fx, fy - 12, 8, 12); x.fillStyle = '#e8f4ff'; x.fillRect(fx + 1, fy - 9, 6, 4); x.fillStyle = '#2a5aa8'; x.fillRect(fx + 1, fy - 16, 6, 4); x.fillRect(fx - 1, fy - 15, 2, 1);
+  // 김두현의 냄새나는 헌 양말
+  const sx = 128, sy = E3_FLOOR + 6;
+  x.fillStyle = '#05030a'; x.fillRect(sx - 1, sy - 10, 7, 12); x.fillRect(sx - 1, sy - 2, 13, 5); x.fillStyle = '#8a8690'; x.fillRect(sx, sy - 9, 5, 9); x.fillRect(sx, sy - 1, 11, 3); x.fillStyle = '#5a5660'; x.fillRect(sx, sy - 9, 5, 2); x.fillRect(sx + 9, sy - 1, 2, 3); x.fillStyle = '#05030a'; x.fillRect(sx + 6, sy, 1, 1); x.fillRect(sx + 2, sy - 4, 1, 1);
+  for (let k = 0; k < 3; k++) for (let i = 0; i < 8; i++) { x.fillStyle = `rgba(127,191,90,${0.6 - i * 0.07})`; x.fillRect(sx + 1 + k * 4 + Math.round(Math.sin(t * 0.15 + i * 0.8 + k) * 1.5), sy - 12 - i * 2 - ((t * 0.2) % 2), 1, 1); }
+  x.restore();
+  x.fillStyle = 'rgba(0,0,0,.25)'; x.fillRect(0, 0, E3_W, E3_H);
+}
+
+// ----- 5막: 기숙사 모두의 배웅 → 언덕 너머로 -----
+const E3_PATH = [[84, 132], [70 + 26, 124 - 2], [118, 108], [138, 98], [152, 86], [168, 76], [182, 66]];
+function e3PathAt(s) { const n = E3_PATH.length - 1, f = Math.max(0, Math.min(0.9999, s)) * n, i = Math.floor(f), k = f - i, a = E3_PATH[i], b = E3_PATH[i + 1]; return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; }
+function e3Bye(x) {
+  const e = e3, t = e.t, pt = e.pt;
+  // 노을 하늘
+  const g = x.createLinearGradient(0, 0, 0, E3_H); g.addColorStop(0, '#2a1640'); g.addColorStop(0.45, '#a8405a'); g.addColorStop(0.75, '#f08a4a'); g.addColorStop(1, '#f2c14e'); x.fillStyle = g; x.fillRect(0, 0, E3_W, E3_H);
+  // 지는 해 (언덕 뒤)
+  x.fillStyle = 'rgba(255,220,140,.35)'; x.fillRect(166, 44, 34, 30); x.fillStyle = '#ffd890'; x.fillRect(172, 48, 22, 22); x.fillRect(169, 51, 28, 16);
+  // 줄무늬 구름
+  x.fillStyle = 'rgba(255,170,150,.5)'; x.fillRect(20, 30, 50, 2); x.fillRect(34, 34, 40, 1); x.fillRect(120, 22, 46, 2);
+  // 언덕 실루엣 + 길
+  x.fillStyle = '#3a1a2a'; x.beginPath(); x.moveTo(40, E3_H); for (let i = 0; i <= 40; i++) { const xx = 40 + i * 4.4, yy = 66 + Math.pow(Math.abs(xx - 186) / 150, 1.6) * 80; x.lineTo(xx, Math.min(E3_H, yy)); } x.lineTo(E3_W, 70); x.lineTo(E3_W, E3_H); x.fill();
+  x.fillStyle = '#c87850'; for (let i = 0; i < 60; i++) { const [px, py] = e3PathAt(i / 60), w = Math.max(1, Math.round(6 * (1 - i / 60))); x.fillRect(Math.round(px - w / 2), Math.round(py), w, 1); }
+  // 언덕 위 단풍나무
+  for (const [tx, ty, s] of [[150, 76, 1], [196, 70, 1.2], [126, 92, 1.3], [84, 118, 1.6]]) { x.fillStyle = '#2a1018'; x.fillRect(tx, ty - 8 * s, 1 + Math.round(s - 0.5), 8 * s); x.fillStyle = '#c9541f'; x.fillRect(tx - 4 * s, ty - 14 * s, 9 * s, 6 * s); x.fillStyle = '#e8a33a'; x.fillRect(tx - 3 * s, ty - 16 * s, 6 * s, 3 * s); }
+  // 기숙사 건물 (왼쪽)
+  x.fillStyle = '#2a1e30'; x.fillRect(0, 54, 52, E3_H - 54); x.fillStyle = '#3a2c40'; x.fillRect(0, 50, 54, 5);
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { x.fillStyle = (r * 4 + c + Math.floor(t / 30)) % 7 === 0 ? '#ffd890' : '#f0a860'; x.fillRect(5 + c * 12, 60 + r * 13, 6, 6); }
+  x.fillStyle = '#d8d0e0'; x.fillRect(12, 112 - 10, 28, 7); x.fillStyle = '#2a1e30'; x.font = 'bold 6px "Malgun Gothic", sans-serif'; x.textAlign = 'center'; x.fillText('기숙사', 26, 108);
+  // 배웅하는 기숙사 모두 (나머지 캐릭터들) — 좌우로 흔들흔들
+  const others = CHARACTERS.map((_, i) => i).filter((i) => i !== players[e.yi].char && i !== players[e.di].char);
+  others.forEach((ci, k) => { const row = k % 2, col = Math.floor(k / 2), cx = 7 + col * 12 + row * 6, by = 136 - (1 - row) * 8 + Math.round(Math.abs(Math.sin(t * 0.2 + k)) * -2);
+    x.save(); x.translate(cx, by); x.rotate(Math.sin(t * 0.18 + k * 1.3) * 0.25); x.translate(-cx, -by); e3DrawSpr(x, ci, cx, by, 0.3, 1, false, '#1a0a14', [30, 10, -10]); x.restore(); });
+  // 두 사람: 언덕길을 따라 걸어 올라가며 작아지다 사라짐
+  const s = Math.max(0, (pt - 30) / 190), [px, py] = e3PathAt(s), sc = 0.32 * (1 - s * 0.7), fade = s > 0.88 ? Math.max(0, 1 - (s - 0.88) / 0.1) : 1, step = Math.round(Math.abs(Math.sin(t * 0.3)) * 1.5);
+  const Y = players[e.yi], D = players[e.di];
+  if (s < 0.99) { e3DrawSpr(x, D.char, px - 8 * (1 - s) - 1, py - step, Math.max(0.12, sc), fade, false, '#1a0a14', [30, 10, -10]); e3DrawSpr(x, Y.char, px + 8 * (1 - s) + 1, py - (step ? 0 : 1), Math.max(0.12, sc), fade, false, '#1a0a14', [30, 10, -10]); }
+  // 노을빛 덮기 + 마지막 페이드
+  x.fillStyle = 'rgba(255,120,60,.08)'; x.fillRect(0, 0, E3_W, E3_H);
+  if (pt > 225) { x.fillStyle = `rgba(0,0,0,${Math.min(1, (pt - 225) / 25)})`; x.fillRect(0, 0, E3_W, E3_H); }
+}
+
+// ----- 화면 합성 (색수차·글리치·레터박스·UI) -----
+function e3Chroma(ab) {
+  const e = e3;
+  for (const [cv, col] of [[e.cr, '#f00'], [e.cc, '#0ff']]) { const c = cv.getContext('2d'); c.globalCompositeOperation = 'source-over'; c.drawImage(e.pix, 0, 0); c.globalCompositeOperation = 'multiply'; c.fillStyle = col; c.fillRect(0, 0, E3_W, E3_H); c.globalCompositeOperation = 'source-over'; }
+  ctx.fillStyle = '#000'; ctx.fillRect(-20, -20, GW + 40, GH + 40);
+  ctx.drawImage(e.cr, -ab, 0, GW, GH);
+  ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(e.cc, ab, 0, GW, GH); ctx.globalCompositeOperation = 'source-over';
+}
+function e3Wrap(str, w) { const out = []; let cur = ''; for (const chh of str) { if (ctx.measureText(cur + chh).width > w && cur) { out.push(cur); cur = chh === ' ' ? '' : chh; } else cur += chh; } if (cur) out.push(cur); return out; }
+function e3PorBox(T, who) { const two = !!T.two, s = two ? 64 : 80, side = players[who === 'y' ? e3.yi : e3.di].side; return { x: side === 0 ? 12 : GW - 12 - s, y: 266 - s, s, side }; }
+function e3Portrait(T, who, dim) {
+  const e = e3, P = players[who === 'y' ? e.yi : e.di], b = e3PorBox(T, who), t = e.t;
+  if (!e.por[who]) { const im = imgs['char' + P.char]; if (im) e.por[who] = e3Pixelize(im, 40, Math.round((40 * im.height) / im.width), who === 'y' ? [18, 0, 26] : [0, 8, 30]); }
+  ctx.fillStyle = '#05030a'; ctx.fillRect(b.x - 3, b.y - 3, b.s + 6, b.s + 6);
+  const gg = ctx.createLinearGradient(0, b.y, 0, b.y + b.s); gg.addColorStop(0, who === 'y' ? '#3a0a28' : '#0a1a3a'); gg.addColorStop(1, '#0a0614'); ctx.fillStyle = gg; ctx.fillRect(b.x, b.y, b.s, b.s);
+  const p = e.por[who];
+  if (p) { const h = (b.s * p.height) / p.width, jit = who === 'y' && !dim ? Math.round(Math.sin(t * 1.7)) * 0.5 : 0; ctx.save(); ctx.beginPath(); ctx.rect(b.x, b.y, b.s, b.s); ctx.clip(); ctx.imageSmoothingEnabled = false; ctx.drawImage(p, b.x + jit, b.y + (b.s - h) / 2 + b.s * 0.06, b.s, h); ctx.restore(); }
+  if (who === 'y' && !dim) {
+    for (let i = 0; i < 12; i++) { ctx.fillStyle = `rgba(176,74,255,${0.35 + Math.random() * 0.4})`; ctx.fillRect(Math.round(b.x + b.s * (0.18 + Math.random() * 0.64)), Math.round(b.y + b.s * (0.44 + Math.random() * 0.1)), 2, 2); } // 눈가 보랏빛 떨림
+    const k = 1 + Math.abs(Math.sin(t * 0.25)) * 0.3, vx = b.x + b.s * 0.82, vy = b.y + b.s * 0.16; ctx.fillStyle = '#ff2a3a'; // 이마 핏줄
+    for (const [ax, ay] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.fillRect(vx + ax * 3 * k - 1, vy + ay * 3 * k - 1, 2, 2); ctx.fillRect(vx + ax * 5 * k - 1, vy + ay * 2 * k - 1, 2, 2); ctx.fillRect(vx + ax * 2 * k - 1, vy + ay * 5 * k - 1, 2, 2); }
+  }
+  if (who === 'd' && !dim) for (let i = 0; i < 10; i++) { ctx.fillStyle = `rgba(90,184,255,${0.2 + Math.random() * 0.3})`; ctx.fillRect(Math.round(b.x + Math.random() * b.s), Math.round(b.y + b.s - ((t * 0.8 + i * 9) % b.s)), 2, 2); }
+  for (let y = b.y; y < b.y + b.s; y += 2) { ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(b.x, y, b.s, 0.7); }
+  if (dim) { ctx.fillStyle = 'rgba(4,2,10,.6)'; ctx.fillRect(b.x, b.y, b.s, b.s); }
+  ctx.strokeStyle = who === 'y' ? '#ff4a9a' : '#5ab8ff'; ctx.lineWidth = 1; ctx.strokeRect(b.x - 1.5, b.y - 1.5, b.s + 3, b.s + 3);
+  ctx.fillStyle = ctx.strokeStyle; for (const [cx, cy] of [[b.x - 3, b.y - 3], [b.x + b.s + 1, b.y - 3], [b.x - 3, b.y + b.s + 1], [b.x + b.s + 1, b.y + b.s + 1]]) ctx.fillRect(cx, cy, 2, 2);
+}
+function e3TalkUI() {
+  const e = e3, T = E3_TALK[e.talk]; if (!T) return;
+  const two = !!T.two, sp = T.sp, pb = e3PorBox(T, sp);
+  if (two) { e3Portrait(T, 'y', sp !== 'y'); e3Portrait(T, 'd', sp !== 'd'); } else e3Portrait(T, sp, false);
+  let x0, x1;
+  if (two) { x0 = 12 + 64 + 10; x1 = GW - 12 - 64 - 10; } else if (pb.side === 0) { x0 = pb.x + pb.s + 10; x1 = GW - 14; } else { x0 = 14; x1 = pb.x - 10; }
+  const y0 = 186, y1 = 266;
+  ctx.fillStyle = 'rgba(5,3,10,.88)'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+  const col = sp === 'y' ? '#ff4a9a' : '#5ab8ff';
+  ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0 - 1, y1 - y0 - 1); ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.strokeRect(x0 + 3.5, y0 + 3.5, x1 - x0 - 7, y1 - y0 - 7);
+  // 이름표
+  const name = sp === 'y' ? '[ 308호 김예안 ]' : '[ 308호 김두현 ]';
+  ctx.font = 'bold 9px "Malgun Gothic", sans-serif'; const nw = ctx.measureText(name).width + 14;
+  ctx.fillStyle = '#05030a'; ctx.fillRect(x0, y0 - 13, nw, 13); ctx.fillStyle = col; ctx.fillRect(x0, y0 - 13, 3, 13); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left'; ctx.fillText(name, x0 + 8, y0 - 3);
+  // 본문 (타자기)
+  ctx.font = 'bold 10px "Malgun Gothic", sans-serif'; ctx.textAlign = 'left';
+  const rows = []; T.lines.forEach((ln, i) => { if (i > e.line) return; const s = i < e.line ? ln : ln.slice(0, Math.floor(e.ch)); e3Wrap(s, x1 - x0 - 18).forEach((r) => rows.push([r, i === e.line])); });
+  const vis = rows.slice(-5);
+  vis.forEach(([r, cur], i) => { ctx.fillStyle = cur ? '#f2ecff' : '#8a80a0'; ctx.fillText(r, x0 + 9, y0 + 17 + i * 13); });
+  const L = T.lines[e.line];
+  if (e.ph === 'talk' && e.ch >= L.length && Math.floor(e.t / 6) % 2 === 0) { ctx.fillStyle = col; ctx.fillRect(x1 - 12, y1 - 10, 5, 2); ctx.fillRect(x1 - 11, y1 - 8, 3, 2); }
+  // 눈물
+  if (e.tear) { ctx.fillStyle = '#bfe6ff'; ctx.fillRect(Math.round(e.tear.x), Math.round(e.tear.y), 2, 3); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(e.tear.x), Math.round(e.tear.y), 1, 1); }
+}
+function drawE308() {
+  const e = e3, x = e.pix.getContext('2d');
+  x.imageSmoothingEnabled = false; x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+  const ph = e.ph;
+  if (ph === 'room') e3Room(x); else if (ph === 'bye') e3Bye(x); else e3Scene(x);
+  e3Leaves(x, ph === 'room' ? 0.5 : 1);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if (e.sh > 0.3) ctx.translate((Math.random() - 0.5) * e.sh, (Math.random() - 0.5) * e.sh);
+  if (ph === 'crt') { // CRT TV 꺼지듯 한 줄로
+    const q = e.pt / 22; ctx.fillStyle = '#000'; ctx.fillRect(-20, -20, GW + 40, GH + 40);
+    if (q < 0.5) { const hh = Math.max(2, GH * (1 - q / 0.5)); ctx.drawImage(e.pix, 0, GH / 2 - hh / 2, GW, hh); ctx.fillStyle = `rgba(255,255,255,${(q / 0.5) * 0.9})`; ctx.fillRect(0, GH / 2 - hh / 2, GW, hh); }
+    else if (q < 0.9) { const ww = GW * (1 - (q - 0.5) / 0.4); ctx.fillStyle = '#fff'; ctx.shadowColor = '#fff'; ctx.shadowBlur = 8; ctx.fillRect(GW / 2 - ww / 2, GH / 2 - 0.5, ww, 1); ctx.shadowBlur = 0; }
+    else { ctx.fillStyle = `rgba(255,255,255,${1 - (q - 0.9) / 0.1})`; ctx.fillRect(GW / 2 - 1, GH / 2 - 1, 2, 2); }
+  } else {
+    let ab = 0.5; if (e.gl > 0) ab = 2 + Math.random() * 2.5; if (ph === 'glitch') ab = 1 + Math.random() * 4;
+    e3Chroma(ab);
+    if (e.gl > 0 || ph === 'glitch') for (let i = 0; i < 5; i++) { const sy = Math.random() * GH, sh = 3 + Math.random() * 14; ctx.drawImage(e.pix, 0, sy / 2, E3_W, sh / 2, (Math.random() - 0.5) * 34, sy, GW, sh); }
+    if (ph === 'glitch') for (let i = 0; i < 60; i++) { const v = Math.floor(Math.random() * 255); ctx.fillStyle = `rgba(${v},${v},${v},${0.5 * (1 - e.pt / 12)})`; ctx.fillRect(Math.floor(Math.random() * 108) * 4, Math.floor(Math.random() * 76) * 4, 4 + Math.random() * 20, 2); }
+    if (e.gl > 0 && E3_TALK[e.talk] && E3_TALK[e.talk].glitch) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = 'rgba(255,40,60,.9)'; ctx.fillRect(0, 0, GW, GH); ctx.globalCompositeOperation = 'source-over'; } // 붉은 글리치 점멸
+    if (ph === 'impact') { // 흑백 네거티브 반전
+      const p = e.pt, inv = (p >= 6 && p < 12) || (p >= 14 && p < 17) || (p >= 20 && p < 22);
+      if (inv) { ctx.globalCompositeOperation = 'saturation'; ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, GW, GH); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, GW, GH); ctx.globalCompositeOperation = 'source-over'; }
+      if (p === 6 || p === 7) { ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.fillRect(0, 0, GW, GH); }
+    }
+    for (let y = 0; y < GH; y += 2) { ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.fillRect(0, y, GW, 0.5); } // 주사선
+    const vg = ctx.createRadialGradient(GW / 2, GH / 2, 120, GW / 2, GH / 2, 290); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.6)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, GW, GH);
+    if (ph === 'room' && e.pt < 14) { ctx.fillStyle = `rgba(0,0,0,${1 - e.pt / 14})`; ctx.fillRect(0, 0, GW, GH); }
+    if (ph === 'room' && e.pt > 55) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, (e.pt - 55) / 20)})`; ctx.fillRect(0, 0, GW, GH); }
+    if (ph === 'bye' && e.pt < 18) { ctx.fillStyle = `rgba(0,0,0,${1 - e.pt / 18})`; ctx.fillRect(0, 0, GW, GH); }
+  }
+  ctx.restore();
+  ctx.imageSmoothingEnabled = true;
+  // 시네마틱 레터박스
+  const lb = 30 * Math.min(1, e.t / 12);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, GW, lb); ctx.fillRect(0, GH - lb, GW, lb);
+  // 시스템 로그 (오른쪽 아래)
+  if (ph === 'float' || ph === 'glitch') {
+    ctx.font = 'bold 8px Consolas, "Malgun Gothic", monospace'; ctx.textAlign = 'right';
+    let left = Math.floor(Math.max(0, e.pt - 8) * 1.4);
+    E3_LOG.forEach((ln, i) => { const n = Math.min(ln.length, left); left -= ln.length; if (n <= 0) return; const s = ln.slice(0, n); const w = ctx.measureText(ln).width; ctx.fillStyle = 'rgba(5,3,10,.7)'; ctx.fillRect(GW - 14 - w - 4, 240 + i * 13 - 9, w + 8, 12); ctx.fillStyle = i ? '#ffd0d0' : '#ff5a6a'; ctx.fillText(s + (n < ln.length || Math.floor(e.t / 6) % 2 ? '█' : ' '), GW - 14, 240 + i * 13); });
+  }
+  if (ph === 'talk' || ph === 'tear') e3TalkUI();
+  for (const q of e.shards) if (!q.px) { ctx.fillStyle = q.c; ctx.globalAlpha = Math.min(1, q.t / 20); ctx.fillRect(Math.round(q.x), Math.round(q.y), 2, 2); ctx.globalAlpha = 1; }
+  if (ph === 'impact' && e.pt >= 30) { const a = Math.min(1, (e.pt - 30) / 12); ctx.globalAlpha = a; text('" 잘 가라, 나의 냄새나던 청춘 (2026) "', GW / 2, 196, 11, '#ffd0d0'); ctx.globalAlpha = 1; }
+  if (ph === 'bye') {
+    for (const b of e.bye) { const bx = 26 + b.slot * 20, by = 222 - 30 - (50 - b.t) * 0.5; ctx.globalAlpha = Math.min(1, b.t / 12); ctx.font = 'bold 8px "Malgun Gothic", sans-serif'; const w = ctx.measureText(b.text).width + 8; ctx.fillStyle = 'rgba(255,245,230,.92)'; ctx.fillRect(bx - w / 2, by - 9, w, 12); ctx.fillStyle = '#5a2a1a'; ctx.textAlign = 'center'; ctx.fillText(b.text, bx, by); ctx.globalAlpha = 1; }
+    if (e.pt > 150 && e.pt < 240) { ctx.globalAlpha = Math.min(1, (e.pt - 150) / 20) * Math.min(1, (240 - e.pt) / 15); text('308호, 퇴실 완료.', GW / 2, 56, 13, '#fff3e0'); ctx.globalAlpha = 1; }
+  }
+  if (e.t > 40 && ph !== 'crt') { ctx.globalAlpha = 0.45; text(ph === 'talk' ? 'Z/Enter 다음 · Esc 건너뛰기' : 'Esc 건너뛰기', GW - 70, GH - 12, 8, '#ffffff'); ctx.globalAlpha = 1; }
+}
