@@ -1,5 +1,5 @@
 // ===== 설정 (여기만 바꾸면 돼요) =====
-const GAME_VERSION = 'v7.7'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
+const GAME_VERSION = 'v7.8'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
 const CONFIG = {
   WIN_SCORE: 15,          // 몇 점 내면 이기는지
   FPS: 25,                // 1초에 몇 번 움직이는지 (원작 보통 속도 25)
@@ -485,7 +485,7 @@ function updatePlayer(p, inp) {
     if (--p.confNext <= 0) { p.confRev = !p.confRev; p.confNext = 10 + Math.floor(Math.random() * 22); if (p.confRev) sfx('beep', 0.25); }
     if (p.confRev) inp = { ...inp, x: -inp.x };
   }
-  if (p.quakeT > 0) { p.quakeT--; p.x += (Math.random() - 0.5) * 6; if (Math.random() < 0.2) inp = { ...inp, x: inp.x * -0.5 }; shake = Math.max(shake, 3); } // 지진 (도구리의 왕): 땅이 흔들려 휘청
+  if (p.quakeT > 0) { p.quakeT--; p.x += (Math.random() - 0.5) * 14; if (Math.random() < 0.35) inp = { ...inp, x: inp.x * -1 }; if (Math.random() < 0.15) inp = { ...inp, y: 0 }; } // 대지진 (도구리의 왕): 땅이 크게 흔들려 휘청 + 조작 반대·점프 씹힘
   if (p.lagT > 0) { p.lagT--; p.lagQ.push(inp); inp = p.lagQ.length > 7 ? p.lagQ.shift() : { x: 0, y: 0, power: false, skill: false }; } // 위상차: 조작이 0.3초 늦게 들어감
   if (p.freezeT > 0) { p.freezeT--; inp = { x: 0, y: 0, power: false, skill: false }; } // 멈칫
 
@@ -2550,8 +2550,9 @@ function drawYaPPUI(c) {
 // ===== 이준혁 (MYTHIC, v7.6): 트름 · 1등급 꺼드럭 · 도구리의 왕 =====
 // 트름·꺼드럭 = 3초 (FIRE 75), 도구리의 왕 = 6초 (FIRE 150). 연출이 끝나면 받을 수 있는 진짜 공 (MYTHIC = 확정 득점 없음)
 const LJ_B = 12, LJ_C = 30, LJ_DC = 40, LJ_DHIT = 122;
-const LJ_N = { burp: 14, swag: 11, doguri: 16 }; // v7.6.4 강화 (김우현급, AI 시뮬로 맞춤) // 스킬 공 속도 (작을수록 빠름)
-const LJ_FRZ = { burp: 6, doguri: 6 };          // 상대 멈칫 프레임 (길면 무조건 득점이 돼서 짧게)
+const LJ_N = { burp: 9, swag: 11, doguri: 16 }; // v7.6.4 강화 (김우현급, AI 시뮬로 맞춤) // 스킬 공 속도 (작을수록 빠름)
+const LJ_FRZ = { burp: 6, doguri: 6 };
+const LJ_QUAKE = 150; // 도구리 대지진 6초          // 상대 멈칫 프레임 (길면 무조건 득점이 돼서 짧게)
 const LJ_SKILLS = [
   { key: 'burp', fire: 75, title: '초음파 뇌전 트름', en: 'Shockwave Burp — 800Hz Subwoofer', col: '180,90,255',
     lines: ['"꺼어어억-!!"', '"아 점심에 먹은 탄산 배출 완료."'] },
@@ -2608,13 +2609,16 @@ function updateLj() {
   if (t === F) {
     const [mn, mx] = T.side === 0 ? [44, NET_X - 40] : [NET_X + 40, 388];
     let msg, tx;
-    if (k === 'burp') { T.freezeT = LJ_FRZ.burp; T.stunned = true; T.confuseT = 75; T.confRev = true; T.confNext = 999; tx = (mn + mx) / 2 + (Math.random() - 0.5) * 40; msg = '초음파 트름! 정신 착란 — 공 5개 + 3초 조작 반전'; }
+    if (k === 'burp') { T.freezeT = LJ_FRZ.burp; T.stunned = true; T.confuseT = 75; T.confRev = true; T.confNext = 999; tx = (mn + mx) / 2 + (Math.random() - 0.5) * 40; msg = '초음파 트름! 정신 착란 — 센 공 5발이 꽂힘 + 3초 조작 반전'; }
     else if (k === 'swag') { foes(P).forEach((o) => { o.weakT = 175; o.weakTag = '😩 자괴감'; o.slowT = 175; o.slowK = 0.6; o.mana = Math.max(0, o.mana - 2); }); P.ampT = 175; tx = Math.abs(T.x - mn) > Math.abs(T.x - mx) ? mn + 10 : mx - 10; msg = '1등급 꺼드럭! 상대 자괴감(스파이크 약화·감속·마나 -2) + 나 스파이크 증폭'; }
-    else { foes(P).forEach((o) => { for (const f of ['guardT', 'blockT', 'fwT']) o[f] = 0; o.matrixGuard = false; o.courtGuard = false; o.mana = 0; o.shrinkT = 125; o.shrinkK = 0.75; o.quakeT = 100; }); T.freezeT = LJ_FRZ.doguri; T.stunned = true; tx = Math.max(mn, Math.min(mx, T.x + (T.x - mn > mx - T.x ? -70 : 70))); msg = '도구리의 왕! 방어막·마나 갈아엎음 + 축소 + 4초 지진'; }
+    else { foes(P).forEach((o) => { for (const f of ['guardT', 'blockT', 'fwT']) o[f] = 0; o.matrixGuard = false; o.courtGuard = false; o.mana = 0; o.shrinkT = 125; o.shrinkK = 0.75; o.quakeT = LJ_QUAKE; }); T.freezeT = LJ_FRZ.doguri; T.stunned = true; tx = Math.max(mn, Math.min(mx, T.x + (T.x - mn > mx - T.x ? -70 : 70))); msg = '도구리의 왕! 방어막·마나 갈아엎음 + 축소 + 규모 9.0 대지진'; }
     ball.x = NET_X + s * 30; ball.y = k === 'doguri' ? 90 : 110; releaseBall(tx, LJ_N[k]); // 상대 코트 위에서 출발 (내 AI가 바로 다시 안 치게)
-    if (k === 'burp') for (let i = 0; i < 4; i++) { // 정신 착란: 공이 5군데에서 떨어짐 (진짜 1 + 환영 4)
-      const fx = mn + ((i + 0.5) / 4) * (mx - mn) + (Math.random() - 0.5) * 20, n = LJ_N.burp - 2 + Math.floor(Math.random() * 6);
-      fakes.push({ x: ball.x, y: ball.y, vx: (fx - ball.x) / n, vy: (BALL_GROUND_Y - ball.y - (n * (n - 1)) / 2) / n, rot: 0, glitch: true });
+    if (k === 'burp') { // 정신 착란: 이준혁 입에서 센 공 5발이 각도를 계산해 상대한테 꽂힘 (진짜 1 + 환영 4)
+      const sx = P.x + s * 18, sy = P.y - 50, aims = [-56, -28, 0, 28, 56].map((d) => Math.max(mn, Math.min(mx, T.x + d))), real = Math.floor(Math.random() * 5);
+      const shot = (tx) => { ball.x = sx; ball.y = sy; releaseBall(tx, LJ_N.burp); return { vx: ball.vx, vy: ball.vy }; };
+      aims.forEach((tx, i) => { if (i === real) return; const v = shot(tx); fakes.push({ x: sx, y: sy, vx: v.vx, vy: v.vy, rot: 0, glitch: true }); });
+      const v = shot(aims[real]); ball.x = sx; ball.y = sy; ball.vx = v.vx; ball.vy = v.vy; ball.power = true;
+      heavy(sx, sy, 2.2); shake = Math.max(shake, 16); P.collided = true; // 내 몸에 바로 안 맞게
     }
     if (!bossMode) popups.push({ text: msg, x: GW / 2, y: 168, t: 55, color: `rgb(${c.sk.col})` });
     sfx('flight', 1, 0.7);
@@ -9299,3 +9303,29 @@ function drawRedLine() {
   baseD();
   if (state === 'title' && INTRO.t >= INTRO_END) { ctx.save(); ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0); ctx.globalAlpha = 0.85; text(GAME_VERSION, GW - 5, GH - 5, 8, '#ffffff', 'right'); ctx.restore(); }
 }; }
+
+// ===== (v7.8) 도구리의 왕 '대지진' — 화면이 크게 흔들리고, 흔들리는 코트 위의 공은 떨어지면서 방향이 막 바뀜 =====
+function quakeSide() { for (const p of players) if (p.quakeT > 0) return p.side; return -1; }
+{ const baseU = update; update = function () {
+  baseU();
+  if (state !== 'play' || cine) return;
+  const qs = quakeSide(); if (qs < 0) return;
+  shake = Math.max(shake, 14 + Math.random() * 8); // 진짜 크게 흔들림
+  const onSide = (ball.x < NET_X) === (qs === 0);
+  if (onSide && ball.vy > 0 && ball.y > 50 && ball.y < BALL_GROUND_Y - 30 && Math.random() < 0.22) { // 떨어지는 공이 땅울림에 튕겨 방향이 바뀜
+    ball.vx = Math.max(-15, Math.min(15, ball.vx + (Math.random() - 0.5) * 16));
+    ball.vy = Math.max(1, ball.vy + (Math.random() - 0.6) * 4);
+  }
+}; }
+function drawQuake() {
+  const qs = quakeSide(); if (qs < 0 || cine) return;
+  const L = players.find((p) => p.quakeT > 0), a = Math.min(1, L.quakeT / 15), x0 = qs === 0 ? 0 : NET_X, x1 = qs === 0 ? NET_X : GW, t = L.quakeT;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.strokeStyle = 'rgba(60,30,10,.85)'; ctx.lineWidth = 2; // 코트를 가로지르는 균열
+  for (let k = 0; k < 4; k++) { ctx.beginPath(); let x = x0 + 20 + k * (x1 - x0 - 40) / 3, y = 271; ctx.moveTo(x, y); for (let j = 0; j < 5; j++) { x += ((k * 7 + j * 13) % 11) - 5; y += 6; ctx.lineTo(x, y); } ctx.stroke(); }
+  for (let i = 0; i < 10; i++) { const px = x0 + ((i * 47 + t * 3) % Math.max(1, x1 - x0)), py = 272 - ((i * 13 + t * 5) % 30); ctx.fillStyle = i % 2 ? '#7a4a22' : '#a06a34'; ctx.fillRect(px, py, 4, 4); } // 튀어 오르는 흙·돌
+  ctx.fillStyle = `rgba(120,60,20,${0.12 + 0.08 * Math.sin(t)})`; ctx.fillRect(x0, 0, x1 - x0, GH); // 흙먼지
+  text('🌋 규모 9.0 대지진', (x0 + x1) / 2, 64, 12, Math.floor(t / 4) % 2 ? '#ff8a3a' : '#ffd23f');
+  ctx.restore();
+}
+{ const baseNet = drawNet; drawNet = function () { baseNet(); drawQuake(); }; }
