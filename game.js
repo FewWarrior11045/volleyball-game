@@ -1,5 +1,5 @@
 // ===== 설정 (여기만 바꾸면 돼요) =====
-const GAME_VERSION = 'v7.6.1'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
+const GAME_VERSION = 'v7.6.3'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
 const CONFIG = {
   WIN_SCORE: 15,          // 몇 점 내면 이기는지
   FPS: 25,                // 1초에 몇 번 움직이는지 (원작 보통 속도 25)
@@ -40,16 +40,16 @@ const CHARACTERS = [
     skillName: '시공간 커널 해킹', desc: ['랜덤 6초 시네마틱 7종! (마나 6칸)', '양자·E=mc²·404·AI·시간·BSOD·빅뱅'] },
   { name: '김예안', gender: 'm', grade: 'LEGENDARY', type: 'sprite', img: 'assets/yean.png', w: 62, h: 46, skill: 'yean',
     skillName: '기숙사 퇴사하기', desc: ['랜덤 6초 시네마틱 3종!', '욕설 폭격·벌점 25점 퇴사·160dB 샤우팅'] },
-  { name: '송리나', gender: 'f', grade: 'MYSTIC', type: 'sprite', img: 'assets/rina.png', w: 74, h: 66, faceNet: true, skill: 'rina',
+  { name: '송리나', gender: 'f', grade: 'MYTHIC', type: 'sprite', img: 'assets/rina.png', w: 74, h: 66, faceNet: true, skill: 'rina',
     skillName: '국영수사과 만점', desc: ['과목별 4초 시네마틱 5종!', '패시브: 상대 스파이크 25% 오답 처리'] },
   { name: '김우현', gender: 'm', grade: 'MYTHIC', type: 'sprite', img: 'assets/woohyun.png', w: 34, h: 46, skill: 'wh',
     skillName: '한번 더! 더블 하이파이브', desc: ['랜덤 4초 시네마틱 4종! (키 135cm)', '생방송 딜레이·벌점 봉인·증폭·선 긋기'] },
-  { name: '이준혁', gender: 'm', grade: 'MYSTIC', type: 'sprite', img: 'assets/ljh.png', w: 62, h: 55, skill: 'ljh',
+  { name: '이준혁', gender: 'm', grade: 'MYTHIC', type: 'sprite', img: 'assets/ljh.png', w: 62, h: 55, skill: 'ljh',
     skillName: '도구리의 왕', desc: ['랜덤 시네마틱 3종! (트름·꺼드럭·트랙터)', '음파 밀쳐내기·1등급 열등감·트랙터 10대'] },
 ];
 const NCHAR = CHARACTERS.length; // 고를 수 있는 캐릭터 수 (보스전 보스는 이 뒤에 붙음)
 // 등급 색깔
-const GRADE_COLOR = { POOP: '#9a6233', COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f', MYSTIC: '#d35bff', ULTRA: '#00ffd0' };
+const GRADE_COLOR = { POOP: '#9a6233', COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f', ULTRA: '#00ffd0' };
 
 // 스킬 시간 (25프레임 = 1초)
 const SKILL_FRAMES = { giant: 125, whirl: 250, hairbeam: 125, democracy: 8, meteor: 8, party: 225, history: 8, sock: 8, math: 8, kim: 8, gm: 8, jmw: 8, jjh: 8, cmj: 8, yean: 8, rina: 8, wh: 8, ljh: 8 };
@@ -2545,8 +2545,8 @@ function drawYaPPUI(c) {
   }
 }
 
-// ===== 이준혁 (MYSTIC, v7.6): 트름 · 1등급 꺼드럭 · 도구리의 왕 =====
-// 트름·꺼드럭 = 3초 (FIRE 75), 도구리의 왕 = 6초 (FIRE 150). 연출이 끝나면 받을 수 있는 진짜 공 (MYSTIC = 확정 득점 없음)
+// ===== 이준혁 (MYTHIC, v7.6): 트름 · 1등급 꺼드럭 · 도구리의 왕 =====
+// 트름·꺼드럭 = 3초 (FIRE 75), 도구리의 왕 = 6초 (FIRE 150). 연출이 끝나면 받을 수 있는 진짜 공 (MYTHIC = 확정 득점 없음)
 const LJ_B = 12, LJ_C = 30, LJ_DC = 40, LJ_DHIT = 122;
 const LJ_N = { burp: 18, swag: 18, doguri: 18 }; // 스킬 공 속도 (작을수록 빠름)
 const LJ_FRZ = { burp: 12, doguri: 12 };          // 상대 멈칫 프레임 (길면 무조건 득점이 돼서 짧게)
@@ -2969,7 +2969,7 @@ function drawWhUI(c) {
   ctx.restore();
 }
 
-// ===== 송리나 (MYSTIC): 국영수사과 만점 — 4초 과목별 시네마틱 5종 =====
+// ===== 송리나 (MYTHIC, 예전 MYSTIC): 국영수사과 만점 — 4초 과목별 시네마틱 5종 =====
 const RN_B = 25, RN_FIRE = 75, RN_END = 100;
 const RN_SKILLS = [
   { key: 'math', subj: '수학', title: '[수학] f(x) 미적분 3D 굴절 스파이크', en: 'Calculus Vector Smash', col: '138,43,226', line: '"이 극댓값 위치에서는... 너희 수비 각도가 존재할 수 없어."' },
@@ -3125,7 +3125,7 @@ function drawRinaUI(c) {
   if (key === 'sci' && t >= RN_FIRE - 1 && t < RN_FIRE + 3) invertFlash();
   if (key === 'soc' && t >= RN_FIRE - 10 && t < RN_FIRE + 6) { const q = Math.min(1, (t - RN_FIRE + 10) / 4), sc = 1 + (1 - q) * 1.5; ctx.save(); ctx.translate(GW / 2, GH / 2); ctx.scale(sc, sc); ctx.rotate(-0.12); ctx.globalAlpha = q; ctx.strokeStyle = '#e0103c'; ctx.lineWidth = 4; ctx.strokeRect(-70, -24, 140, 48); ctx.fillStyle = '#e0103c'; ctx.font = 'bold 24px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('몰수 승인', 0, 9); ctx.restore(); }
   ctx.save(); ctx.globalAlpha = k;
-  text(sk.title, GW / 2, 22, 12, dark ? '#7a1010' : `rgb(${sk.col})`); text(sk.en, GW / 2, 34, 8, dark ? '#333' : '#fff'); text('MYSTIC', GW / 2, 45, 7, '#d080ff');
+  text(sk.title, GW / 2, 22, 12, dark ? '#7a1010' : `rgb(${sk.col})`); text(sk.en, GW / 2, 34, 8, dark ? '#333' : '#fff'); text('MYTHIC', GW / 2, 45, 7, '#ff3b3b');
   if (t >= RN_B) { const ln = sk.line, n = Math.max(0, Math.min(ln.length, Math.floor((t - RN_B) * 1.8))); ctx.font = 'bold 11px "Malgun Gothic", sans-serif'; const w = ctx.measureText(ln).width + 16; ctx.fillStyle = 'rgba(30,0,50,.75)'; ctx.fillRect(GW / 2 - w / 2, 262, w, 17); text(ln.slice(0, n), GW / 2, 274, 11, '#fff'); }
   ctx.restore();
 }
