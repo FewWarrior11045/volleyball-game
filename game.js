@@ -1,4 +1,5 @@
 // ===== 설정 (여기만 바꾸면 돼요) =====
+const GAME_VERSION = 'v7.6.1'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
 const CONFIG = {
   WIN_SCORE: 15,          // 몇 점 내면 이기는지
   FPS: 25,                // 1초에 몇 번 움직이는지 (원작 보통 속도 25)
@@ -7047,7 +7048,7 @@ function drawE308() {
 //       키 입력은 NET_DELAY 프레임 뒤에 적용 (0.12초) → 인터넷이 조금 느려도 끊기지 않게.
 // 방장 = 왼쪽(파랑), 참가자 = 오른쪽(빨강). 각자 DRGF+Z+Shift 또는 방향키+Enter+; 아무거나 써도 됨.
 // =====================================================================
-const NET_VERSION = 'v7.6-' + NCHAR;
+const NET_VERSION = GAME_VERSION + '-' + NCHAR;
 const NET_PREFIX = 'dsvb26-';      // PeerJS 방 이름 앞에 붙는 글자 (방 코드 4자리랑 합쳐짐)
 const NET_DELAY = 3;               // 키 입력 지연 (프레임) — 3 = 0.12초
 // 중계(TURN) 서버 (v7.2.1): 학교 와이파이처럼 직접 연결이 막힌 곳에서 이 서버를 거쳐 우회함.
@@ -9214,6 +9215,7 @@ function drawIntro() {
     c.fillStyle = '#000'; c.fillRect(0, 0, GW, GH);
     c.globalAlpha = Math.max(0, Math.min(1, t / 8, (INTRO_MADE - t) / 6));
     c.fillStyle = '#fff'; c.font = 'bold 22px "Malgun Gothic", sans-serif'; c.fillText('made by 경목', GW / 2, GH / 2);
+    c.fillStyle = 'rgba(255,255,255,0.6)'; c.font = 'bold 10px "Malgun Gothic", sans-serif'; c.fillText(GAME_VERSION, GW / 2, GH / 2 + 22); // 맨 처음에 버전
     c.restore(); return;
   }
   const k = t - INTRO_MADE, dur = INTRO_END - INTRO_MADE;
@@ -9285,3 +9287,9 @@ function drawRedLine() {
   ctx.save(); ctx.globalAlpha = a; text('RED ZONE ' + Math.ceil(L.lineT / 25), x, 26, 8, '#ff5068'); ctx.restore();
 }
 { const baseNet = drawNet; drawNet = function () { baseNet(); drawRedLine(); }; }
+
+// ===== 버전 표시 (메뉴 화면 오른쪽 아래, 작은 흰 글씨) =====
+{ const baseD = draw; draw = function () {
+  baseD();
+  if (state === 'title' && INTRO.t >= INTRO_END) { ctx.save(); ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0); ctx.globalAlpha = 0.85; text(GAME_VERSION, GW - 5, GH - 5, 8, '#ffffff', 'right'); ctx.restore(); }
+}; }

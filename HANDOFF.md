@@ -19,7 +19,7 @@
 - 코드는 전부 `game.js` 한 파일(약 8,000줄). 실행은 `index.html`
 - 캐릭터는 사용자 친구들의 **실제 사진**(배경만 지운 원본 사진)
   - 등급 + 시네마틱 스킬 + 전용 대사가 있음
-- 현재 버전: **v7.6**
+- 현재 버전: **v7.6.1**
 
 ---
 
@@ -320,7 +320,7 @@ Claude outputs/volleyball-preview.html   미리보기 (커밋 안 해도 되는 
 ## 5. 코드 구조 (game.js 위에서부터)
 | 위치(대략 줄) | 내용 |
 |---|---|
-| 1 | CONFIG (WIN_SCORE 15, FPS 25, MANA_MAX 5, IMAGES) |
+| 1 | **GAME_VERSION** (v7.6~: 맨 처음 'made by' 밑 + 메뉴 화면 오른쪽 아래 작은 흰 글씨. `NET_VERSION = GAME_VERSION + '-' + NCHAR` → **버전 올릴 때 GAME_VERSION 한 곳만 바꾸기**), CONFIG (WIN_SCORE 15, FPS 25, MANA_MAX 5, IMAGES) |
 | 12 | CHARACTERS, GRADE_COLOR, SKILL_FRAMES, 각종 연출 상수 |
 | 85 | 기본 값: SCALE 2, GW 432, GH 304, NET_X 216, NET_HW 25, NET_TOP 176, NET_PILLAR_TOP 192, BALL_R 20, BALL_GROUND_Y 252, P_GROUND_Y 244 |
 | 95 | 이미지 불러오기 loadImg → imgs['char'+i], imgs.cineKdh/cineYean/cineYeanFace |
@@ -559,8 +559,9 @@ python3 tools/build_preview.py "출력경로/volleyball-preview.html"
 - v7.3 시작 로딩 화면 (검은 화면 'made by 경목' 1.2초 → 로딩 중... 1.8초 → 메인, game.js 맨 끝 '시작 로딩 화면' 구역)
 - v7.4 김예안 신규 스킬 2종: 신라천정(척력) · 만상천인(인력) + 보스전 기믹 파훼 (NET_VERSION 'v7.4-')
 - v7.5 김우현 신규 스킬 '선 긋기'(네트 당겨서 상대 코트 7초 1.7배, 보스전 기믹) + 로딩 화면을 마인크래프트 월드 로딩 느낌으로(흐린 배경 + 칸이 채워지는 코트 지도, 6초) + 팁 40개 (NET_VERSION 'v7.5-')
-- v7.6 새 캐릭터 이준혁(MYSTIC) + 김지연 회오리 마나 3→4·10초→6초 트름·꺼드럭·도구리의 왕 + **버그 수정**: v7.5에서 resetRound 줄 중간에 주석을 넣어 라운드 끝 효과 초기화가 전부 꺼져 있었음(스킬 효과가 다음 턴까지 남음) → 복구 / 보스 B.lineT가 두 번 줄어 3.5초만 가던 것 수정 / 스파이크 약화 머리 표시가 항상 '⚖ 위헌'이던 것 → 건 스킬에 맞게(`p.weakTag`: 자괴감·선 넘지 마·인력 약화, 김민주는 그대로 위헌) (NET_VERSION 'v7.6-')
 - v7.5.1 두현·예안 엔딩 방 번호 308호 → **508호** (대사·명패·각인·로그·M 안내·모바일 버튼 글자만 바꿈. 함수·변수 이름 is308, e308, boss308Ready, tools/b308.js는 그대로)
+- v7.6 새 캐릭터 이준혁(MYSTIC) + 김지연 회오리 마나 3→4·10초→6초 트름·꺼드럭·도구리의 왕 + **버그 수정**: v7.5에서 resetRound 줄 중간에 주석을 넣어 라운드 끝 효과 초기화가 전부 꺼져 있었음(스킬 효과가 다음 턴까지 남음) → 복구 / 보스 B.lineT가 두 번 줄어 3.5초만 가던 것 수정 / 스파이크 약화 머리 표시가 항상 '⚖ 위헌'이던 것 → 건 스킬에 맞게(`p.weakTag`: 자괴감·선 넘지 마·인력 약화, 김민주는 그대로 위헌) (NET_VERSION 'v7.6-')
+- v7.6.1 버전 표시: 맨 처음 'made by 경목' 밑 + 메뉴 화면 오른쪽 아래 작은 흰 글씨 (`GAME_VERSION` 한 곳에서 관리, NET_VERSION도 여기서 만듦)
 
 ## 13. 남은 일 / 대기 중
 - [x] 이동우 실명으로 변경 완료 (v5.12)
