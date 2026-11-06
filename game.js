@@ -1,5 +1,5 @@
 // ===== 설정 (여기만 바꾸면 돼요) =====
-const GAME_VERSION = 'v7.6.3'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
+const GAME_VERSION = 'v7.7'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
 const CONFIG = {
   WIN_SCORE: 15,          // 몇 점 내면 이기는지
   FPS: 25,                // 1초에 몇 번 움직이는지 (원작 보통 속도 25)
@@ -339,7 +339,7 @@ function resetRound(server) {
   for (const p of players) {
     Object.assign(p, { y: P_GROUND_Y, vy: 0, state: NORMAL, powerT: 0, lyingT: 0, collided: false });
     // 탈모빔은 라운드 끝나면 사라짐 (시간 상관없이)
-    p.lineT = 0; p.weakTag = null; p.shrinkT = 0; p.shrinkK = 0; p.confRev = false; p.frozen = false; p.forceBump = false; p.redT = 0; p.flat = false; p.guardT = 0; p.stunned = false; p.blindT = 0; p.confuseT = 0; p.freezeT = 0; p.flatT = 0; p.fastT = 0; p.weakT = 0; p.nojumpT = 0; p.pullT = 0; p.sightT = 0; p.slowT = 0; p.ampT = 0; p.lagT = 0; p.lagQ = []; p.matrixGuard = false; p.courtGuard = false; p.jumpT = 0; p.manaLockT = 0; p.whirlT = 0; p.blockT = 0; p.silenceT = 0; p.vflipT = 0; p.fwT = 0; p.slowK = 0;
+    p.lineT = 0; p.quakeT = 0; p.weakTag = null; p.shrinkT = 0; p.shrinkK = 0; p.confRev = false; p.frozen = false; p.forceBump = false; p.redT = 0; p.flat = false; p.guardT = 0; p.stunned = false; p.blindT = 0; p.confuseT = 0; p.freezeT = 0; p.flatT = 0; p.fastT = 0; p.weakT = 0; p.nojumpT = 0; p.pullT = 0; p.sightT = 0; p.slowT = 0; p.ampT = 0; p.lagT = 0; p.lagQ = []; p.matrixGuard = false; p.courtGuard = false; p.jumpT = 0; p.manaLockT = 0; p.whirlT = 0; p.blockT = 0; p.silenceT = 0; p.vflipT = 0; p.fwT = 0; p.slowK = 0;
     if (CHARACTERS[p.char].skill === 'hairbeam') p.skillT = 0;
     if (CHARACTERS[p.char].skill === 'democracy') p.skillT = 0; // 민주주의도 라운드 끝나면 해제
   }
@@ -485,6 +485,7 @@ function updatePlayer(p, inp) {
     if (--p.confNext <= 0) { p.confRev = !p.confRev; p.confNext = 10 + Math.floor(Math.random() * 22); if (p.confRev) sfx('beep', 0.25); }
     if (p.confRev) inp = { ...inp, x: -inp.x };
   }
+  if (p.quakeT > 0) { p.quakeT--; p.x += (Math.random() - 0.5) * 6; if (Math.random() < 0.2) inp = { ...inp, x: inp.x * -0.5 }; shake = Math.max(shake, 3); } // 지진 (도구리의 왕): 땅이 흔들려 휘청
   if (p.lagT > 0) { p.lagT--; p.lagQ.push(inp); inp = p.lagQ.length > 7 ? p.lagQ.shift() : { x: 0, y: 0, power: false, skill: false }; } // 위상차: 조작이 0.3초 늦게 들어감
   if (p.freezeT > 0) { p.freezeT--; inp = { x: 0, y: 0, power: false, skill: false }; } // 멈칫
 
@@ -1535,6 +1536,7 @@ function drawStatusIcons(p) {
   const y = hitTop(p) - 18;
   if (p.confuseT > 0) text(p.confRev ? '⇄ 반대!' : '→ 정상', p.x, y, p.confRev ? 9 : 8, p.confRev ? '#ff5060' : '#bbbbbb');
   else if (p.freezeT > 0) text('?!', p.x, y, 12, '#ffffff');
+  else if (p.quakeT > 0) { text('🌋 지진', p.x, y, 8, '#ffb040'); ctx.strokeStyle = 'rgba(70,40,20,.8)'; ctx.lineWidth = 1.5; ctx.beginPath(); for (let i = -2; i <= 2; i++) { ctx.moveTo(p.x + i * 9, 276); ctx.lineTo(p.x + i * 13 + (i % 2 ? 4 : -4), 284); } ctx.stroke(); }
   else if (p.flatT > 0) text('납작', p.x, p.y + 10, 8, '#ffb070');
   else if (p.blindT > 0) text('★ 눈부심', p.x, y, 8, '#ffd84d');
   else if (p.nojumpT > 0) text('F 점프 금지', p.x, y, 8, '#ff4040');
@@ -2548,8 +2550,8 @@ function drawYaPPUI(c) {
 // ===== 이준혁 (MYTHIC, v7.6): 트름 · 1등급 꺼드럭 · 도구리의 왕 =====
 // 트름·꺼드럭 = 3초 (FIRE 75), 도구리의 왕 = 6초 (FIRE 150). 연출이 끝나면 받을 수 있는 진짜 공 (MYTHIC = 확정 득점 없음)
 const LJ_B = 12, LJ_C = 30, LJ_DC = 40, LJ_DHIT = 122;
-const LJ_N = { burp: 18, swag: 18, doguri: 18 }; // 스킬 공 속도 (작을수록 빠름)
-const LJ_FRZ = { burp: 12, doguri: 12 };          // 상대 멈칫 프레임 (길면 무조건 득점이 돼서 짧게)
+const LJ_N = { burp: 14, swag: 11, doguri: 16 }; // v7.6.4 강화 (김우현급, AI 시뮬로 맞춤) // 스킬 공 속도 (작을수록 빠름)
+const LJ_FRZ = { burp: 6, doguri: 6 };          // 상대 멈칫 프레임 (길면 무조건 득점이 돼서 짧게)
 const LJ_SKILLS = [
   { key: 'burp', fire: 75, title: '초음파 뇌전 트름', en: 'Shockwave Burp — 800Hz Subwoofer', col: '180,90,255',
     lines: ['"꺼어어억-!!"', '"아 점심에 먹은 탄산 배출 완료."'] },
@@ -2606,10 +2608,14 @@ function updateLj() {
   if (t === F) {
     const [mn, mx] = T.side === 0 ? [44, NET_X - 40] : [NET_X + 40, 388];
     let msg, tx;
-    if (k === 'burp') { T.freezeT = LJ_FRZ.burp; T.stunned = true; tx = (mn + mx) / 2 + (Math.random() - 0.5) * 40; msg = '초음파 트름! 상대가 맨 뒤로 밀려남 + 귀 먹먹 멈칫'; }
-    else if (k === 'swag') { foes(P).forEach((o) => { o.weakT = 175; o.weakTag = '😩 자괴감'; o.slowT = 175; o.slowK = 0.6; }); P.ampT = 175; tx = Math.abs(T.x - mn) > Math.abs(T.x - mx) ? mn + 10 : mx - 10; msg = '1등급 꺼드럭! 7초 상대 자괴감(스파이크 약화·감속) + 나 스파이크 증폭'; }
-    else { foes(P).forEach((o) => { for (const f of ['guardT', 'blockT', 'fwT']) o[f] = 0; o.matrixGuard = false; o.courtGuard = false; }); T.freezeT = LJ_FRZ.doguri; T.stunned = true; tx = Math.max(mn, Math.min(mx, T.x + (T.x - mn > mx - T.x ? -70 : 70))); msg = '도구리의 왕! 방어막 전부 갈아엎음 + 흙에 파묻힘'; }
+    if (k === 'burp') { T.freezeT = LJ_FRZ.burp; T.stunned = true; T.confuseT = 75; T.confRev = true; T.confNext = 999; tx = (mn + mx) / 2 + (Math.random() - 0.5) * 40; msg = '초음파 트름! 정신 착란 — 공 5개 + 3초 조작 반전'; }
+    else if (k === 'swag') { foes(P).forEach((o) => { o.weakT = 175; o.weakTag = '😩 자괴감'; o.slowT = 175; o.slowK = 0.6; o.mana = Math.max(0, o.mana - 2); }); P.ampT = 175; tx = Math.abs(T.x - mn) > Math.abs(T.x - mx) ? mn + 10 : mx - 10; msg = '1등급 꺼드럭! 상대 자괴감(스파이크 약화·감속·마나 -2) + 나 스파이크 증폭'; }
+    else { foes(P).forEach((o) => { for (const f of ['guardT', 'blockT', 'fwT']) o[f] = 0; o.matrixGuard = false; o.courtGuard = false; o.mana = 0; o.shrinkT = 125; o.shrinkK = 0.75; o.quakeT = 100; }); T.freezeT = LJ_FRZ.doguri; T.stunned = true; tx = Math.max(mn, Math.min(mx, T.x + (T.x - mn > mx - T.x ? -70 : 70))); msg = '도구리의 왕! 방어막·마나 갈아엎음 + 축소 + 4초 지진'; }
     ball.x = NET_X + s * 30; ball.y = k === 'doguri' ? 90 : 110; releaseBall(tx, LJ_N[k]); // 상대 코트 위에서 출발 (내 AI가 바로 다시 안 치게)
+    if (k === 'burp') for (let i = 0; i < 4; i++) { // 정신 착란: 공이 5군데에서 떨어짐 (진짜 1 + 환영 4)
+      const fx = mn + ((i + 0.5) / 4) * (mx - mn) + (Math.random() - 0.5) * 20, n = LJ_N.burp - 2 + Math.floor(Math.random() * 6);
+      fakes.push({ x: ball.x, y: ball.y, vx: (fx - ball.x) / n, vy: (BALL_GROUND_Y - ball.y - (n * (n - 1)) / 2) / n, rot: 0, glitch: true });
+    }
     if (!bossMode) popups.push({ text: msg, x: GW / 2, y: 168, t: 55, color: `rgb(${c.sk.col})` });
     sfx('flight', 1, 0.7);
     cine = null;
