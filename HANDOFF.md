@@ -19,7 +19,7 @@
 - 코드는 전부 `game.js` 한 파일(약 8,000줄). 실행은 `index.html`
 - 캐릭터는 사용자 친구들의 **실제 사진**(배경만 지운 원본 사진)
   - 등급 + 시네마틱 스킬 + 전용 대사가 있음
-- 현재 버전: **v7.4**
+- 현재 버전: **v7.5**
 
 ---
 
@@ -166,7 +166,7 @@ Claude outputs/volleyball-preview.html   미리보기 (커밋 안 해도 되는 
 | 10 | 차명준 | ULTRA | `cmj` | 56×60 | 시공간 커널 해킹. 6초 시네마틱 7종, 마나 6 |
 | 11 | 김예안 | LEGENDARY | `yean` | 62×46 | 기숙사 퇴사하기. 6초 시네마틱 3종 |
 | 12 | 송리나 | MYSTIC | `rina` | 74×66 | 국영수사과 만점. 4초 과목별 5종 + 패시브 |
-| 13 | 김우현 | MYTHIC | `wh` | 34×46 | 한번 더! 더블 하이파이브. 4초 3종 (135cm라 일부러 작게) |
+| 13 | 김우현 | MYTHIC | `wh` | 34×46 | 한번 더! 더블 하이파이브. 4초 4종 (135cm라 일부러 작게, v7.5 선 긋기 추가) |
 
 - **성별 기본값:** 키다리·김민주·송리나 = 여, 나머지 = 남 (사용자 확인 대기)
   - 김지연은 남으로 설정되어 있음
@@ -285,6 +285,16 @@ Claude outputs/volleyball-preview.html   미리보기 (커밋 안 해도 되는 
   - **상대가 김예안이면 1.6초(40) + "TARGET: 김예안" 락온**
 - `clap` 더블 클랩: 상대 마나 0 + 방어막 전부 소멸(guardT/blockT/fwT/matrixGuard/courtGuard) + 관통 공(pierce 40) N 9 + 상대 5초 축소(shrinkT 125, 0.75) + 나 7초 스파이크 증폭(ampT 175) + 내 마나 +2
   - 카메라 360° 회전, 4K REC 화면
+- **(v7.5) `line` 선 긋기** — 붉은 레이저 / 속성 규율·전뇌 (보스 쉴드 약점이 전뇌면 전뇌, 아니면 규율)
+  - 연출: 땅에 선 채로 손끝 레이저가 바닥을 훑어 네트 앞(내 쪽 56)에 선 → WH_B 붉은 레이저 장막 + '찌이잉' 픽셀 왜곡 → WH_HIT1부터 14프레임 동안 네트가 선까지 끌려옴(잔상·타일 주름) → 'COURT ×1.7'. 감시 카메라 HUD(INSPECTION / LINE SET / NET SHIFT / TERRITORY LOCKED). '한번 더' 글자·무지개 손바닥은 안 나옴. 대사 "여기까지가 내 구역이야." / "넘어오지 마."
+  - **네트 이동 구조:** `NET_X`가 이제 `let`. 맨 끝 update 감싸기에서 매 프레임 `NET_X = 216 + lineShift()` — 선수 `lineT`(+ 연출 중엔 cine.t)로 계산하니까 온라인도 그대로 맞음. `WH_SHIFT 56`(상대 코트 216→272 ≈ 1.7배), `WH_LINE_T 175`(7초), 끝날 때 12프레임 동안 돌아옴
+  - 선수 이동 범위(updatePlayer)·AI 담당 구역(aiInput `fit`)·`courtClamp(p)`가 NET_X 따라 늘고 줄음
+  - `lineT`는 점수가 나도 안 꺼짐(resetRound에서 0 안 함, newGame에서만 0). 경기 중엔 `drawRedLine`(drawNet 감싸기)로 붉은 장막 + 'RED ZONE 남은 초'
+  - 일반 경기: 상대 전원 7초 스파이크 약화(weakT) + 넓어진 상대 코트 빈 곳(상대 반대편)으로 공 `WH_LINE_N 22`, 공은 상대 코트 위에서 출발
+    - AI 시뮬(30번): N 20이면 보통 100%·어려움 0% 즉시 득점이라 22로 → 즉시 득점은 거의 없고, 7초 안에 랠리로 득점이 많이 남 (보통 60~77%, 어려움 90%) — 실제 플레이 피드백으로 조정
+  - 보스전(`bossSkillCounter`): `B.lineT` 7초 + 보스 감속(slowT 175, slowK 0.4 → 리시브 거의 불가) + 공 맞히면 머리 확정(히트박스 2배) + 그동안 보스가 공을 칠 때마다 'LINE OUT' 쉴드 자해 D.dmg×1.5(속성 무시) + 캐스팅 50% 둔화. 자동 락온: 캐스팅·즉형 집행·시선 중 (체벌 집행은 벌점 25점 집행이 우선)
+  - 명세의 쿨타임/MP(20초/45)는 이 게임에 쿨타임이 없어서 안 씀. 요약표의 다른 스킬 숫자(쿨타임, 더블 클랩 김예안 +30%)도 안 바꿈
+  - 함수: lineShift, courtClamp, drawWhLineWorld, drawWhLineUI, drawRedLine
 - 도우미: rainbowPalm, onAirSign, whSource, updateWh, whCam, drawWhWorld, drawWhUI
 - 대사: WH_TAUNT, 김예안과 붙으면 WH_VS_YEAN (70%)
 - 사진 woohyun.png: 오른쪽 위 주황 배경 찌꺼기를 지움 (머리 오른쪽 위가 살짝 각짐)
@@ -322,7 +332,7 @@ Claude outputs/volleyball-preview.html   미리보기 (커밋 안 해도 되는 
 | ~6043~끝 | **308호 엔딩 (e3*)** |
 
 ### 5-1. state 목록
-(시작 로딩 화면은 state가 아니라 `INTRO.t` < `INTRO_END`(75)인 동안 update를 막고 화면 위에 덮어 그림. Playwright(navigator.webdriver)면 건너뜀 → 테스트 스크립트는 그대로 됨)
+(시작 로딩 화면은 state가 아니라 `INTRO.t` < `INTRO_END`(150)인 동안 update를 막고 화면 위에 덮어 그림. Playwright(navigator.webdriver)면 건너뜀 → 테스트 스크립트는 그대로 됨)
 title, howto, side, diff, select, startFadeOut, startMsg, ready, play, slow, fadeOut, over, **e308**
 - `isMenu()` = title/howto/startFadeOut/side/diff
 
@@ -538,6 +548,7 @@ python3 tools/build_preview.py "출력경로/volleyball-preview.html"
 - v7.2.1 학교 와이파이 온라인 연결 — TURN 중계 서버(Metered 무료 20GB/월, 443 TLS 포함) 추가
 - v7.3 시작 로딩 화면 (검은 화면 'made by 경목' 1.2초 → 로딩 중... 1.8초 → 메인, game.js 맨 끝 '시작 로딩 화면' 구역)
 - v7.4 김예안 신규 스킬 2종: 신라천정(척력) · 만상천인(인력) + 보스전 기믹 파훼 (NET_VERSION 'v7.4-')
+- v7.5 김우현 신규 스킬 '선 긋기'(네트 당겨서 상대 코트 7초 1.7배, 보스전 기믹) + 로딩 화면을 마인크래프트 월드 로딩 느낌으로(흐린 배경 + 칸이 채워지는 코트 지도, 6초) + 팁 40개 (NET_VERSION 'v7.5-')
 
 ## 13. 남은 일 / 대기 중
 - [x] 이동우 실명으로 변경 완료 (v5.12)

@@ -42,7 +42,7 @@ const CHARACTERS = [
   { name: '송리나', gender: 'f', grade: 'MYSTIC', type: 'sprite', img: 'assets/rina.png', w: 74, h: 66, faceNet: true, skill: 'rina',
     skillName: '국영수사과 만점', desc: ['과목별 4초 시네마틱 5종!', '패시브: 상대 스파이크 25% 오답 처리'] },
   { name: '김우현', gender: 'm', grade: 'MYTHIC', type: 'sprite', img: 'assets/woohyun.png', w: 34, h: 46, skill: 'wh',
-    skillName: '한번 더! 더블 하이파이브', desc: ['랜덤 4초 시네마틱 3종! (키 135cm)', '내리꽂기 + 생방송 딜레이·벌점 봉인·증폭'] },
+    skillName: '한번 더! 더블 하이파이브', desc: ['랜덤 4초 시네마틱 4종! (키 135cm)', '생방송 딜레이·벌점 봉인·증폭·선 긋기'] },
 ];
 const NCHAR = CHARACTERS.length; // 고를 수 있는 캐릭터 수 (보스전 보스는 이 뒤에 붙음)
 // 등급 색깔
@@ -84,7 +84,7 @@ const SKILL_SIZE = { giant: [1, 3], whirl: [2, 2] };
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
 const SCALE = 2, GW = 432, GH = 304;
-const NET_X = 216, NET_HW = 25;
+let NET_X = 216; const NET_HW = 25; // NET_X: 김우현 '선 긋기' 중엔 움직임 (매 프레임 lineShift로 다시 계산)
 let NET_TOP = 176, NET_PILLAR_TOP = 192; // 2대2에선 네트가 낮아짐 (setDuo)
 const BALL_R = 20, BALL_GROUND_Y = 252;
 const P_GROUND_Y = 244, P_HALF = 32;
@@ -171,6 +171,7 @@ function aiInput(p) {
   }
   if (bossMode && p.side === 0) { const z = p === players[0] ? 0 : p === players[2] ? 1 : 2;
     [mn, mx] = [[32, 104], [70, 150], [118, 184]][z]; homeX = [60, 108, 160][z]; }
+  const ndx = NET_X - 216; if (ndx) { const fit = (x) => (p.side === 0 ? 32 + ((x - 32) * (152 + ndx)) / 152 : 400 - ((400 - x) * (152 - ndx)) / 152); mn = fit(mn); mx = fit(mx); homeX = fit(homeX); } // 선 긋기: 코트 크기 변화
   const far = (x) => Math.min(...players.filter((o) => o.side !== p.side).map((o) => Math.abs(x - o.x))); // 상대 중 제일 가까운 사람과의 거리 (빈 곳 찾기)
   const spd = 6 * (L.move || 1);
   const serving = Math.abs(ball.vx) < 0.5 && Math.abs(ball.x - (p.side === 0 ? 36 : 396)) < 30 && mySide(ball.x) && ball.y < 200;
@@ -335,7 +336,7 @@ function resetRound(server) {
   for (const p of players) {
     Object.assign(p, { y: P_GROUND_Y, vy: 0, state: NORMAL, powerT: 0, lyingT: 0, collided: false });
     // 탈모빔은 라운드 끝나면 사라짐 (시간 상관없이)
-    p.shrinkT = 0; p.shrinkK = 0; p.confRev = false; p.frozen = false; p.forceBump = false; p.redT = 0; p.flat = false; p.guardT = 0; p.stunned = false; p.blindT = 0; p.confuseT = 0; p.freezeT = 0; p.flatT = 0; p.fastT = 0; p.weakT = 0; p.nojumpT = 0; p.pullT = 0; p.sightT = 0; p.slowT = 0; p.ampT = 0; p.lagT = 0; p.lagQ = []; p.matrixGuard = false; p.courtGuard = false; p.jumpT = 0; p.manaLockT = 0; p.whirlT = 0; p.blockT = 0; p.silenceT = 0; p.vflipT = 0; p.fwT = 0; p.slowK = 0;
+    p.shrinkT = 0; p.shrinkK = 0; // (선 긋기 lineT는 점수가 나도 7초 동안 유지 → newGame에서만 0) p.confRev = false; p.frozen = false; p.forceBump = false; p.redT = 0; p.flat = false; p.guardT = 0; p.stunned = false; p.blindT = 0; p.confuseT = 0; p.freezeT = 0; p.flatT = 0; p.fastT = 0; p.weakT = 0; p.nojumpT = 0; p.pullT = 0; p.sightT = 0; p.slowT = 0; p.ampT = 0; p.lagT = 0; p.lagQ = []; p.matrixGuard = false; p.courtGuard = false; p.jumpT = 0; p.manaLockT = 0; p.whirlT = 0; p.blockT = 0; p.silenceT = 0; p.vflipT = 0; p.fwT = 0; p.slowK = 0;
     if (CHARACTERS[p.char].skill === 'hairbeam') p.skillT = 0;
     if (CHARACTERS[p.char].skill === 'democracy') p.skillT = 0; // 민주주의도 라운드 끝나면 해제
   }
@@ -350,7 +351,7 @@ function resetRound(server) {
 }
 
 function newGame() {
-  for (const p of players) Object.assign(p, { score: 0, mana: 0, skillT: 0, hm: 1, hw: 1, shrinkT: 0 });
+  for (const p of players) Object.assign(p, { score: 0, mana: 0, skillT: 0, hm: 1, hw: 1, shrinkT: 0, lineT: 0 });
   party = null;
   cine = null;
   winner = -1;
@@ -467,7 +468,7 @@ function updatePlayer(p, inp) {
   if (p.guardT > 0) p.guardT--;
   if (p.frozen) return; // 독재: 공을 받을 때까지 그 자리에 멈춤
   if (p.blindT > 0) p.blindT--;
-  for (const f of ['fastT', 'weakT', 'nojumpT', 'pullT', 'sightT', 'slowT', 'ampT', 'manaLockT', 'jumpT', 'blockT', 'silenceT', 'fwT']) if (p[f] > 0) p[f]--;
+  for (const f of ['fastT', 'weakT', 'nojumpT', 'pullT', 'sightT', 'slowT', 'ampT', 'manaLockT', 'jumpT', 'blockT', 'silenceT', 'fwT', 'lineT']) if (p[f] > 0) p[f]--;
   if (!(p.slowT > 0)) p.slowK = 0;
   if (p.guardT === 0) { p.matrixGuard = false; p.courtGuard = false; }
   if (p.flatT > 0 && --p.flatT === 0) p.flat = false;
@@ -488,7 +489,7 @@ function updatePlayer(p, inp) {
   if (p.pullT > 0) p.x += Math.sign(p.pullX - p.x) * Math.min(4.6, Math.abs(p.pullX - p.x)); // 특이점으로 끌려감
   if (p.state === DIVE) p.x += p.diveDir * 8 * slow;
   else p.x += inp.x * 6 * slow * (p.ai ? AI_LEVELS[p.aiLevel ?? aiLevel].move || 1 : 1); // AI 난이도별 이동속도
-  const [mn, mx] = p.boss ? [266, 398] : p.side === 0 ? [32, 184] : [248, 400];
+  const ndx = NET_X - 216, [mn, mx] = p.boss ? [266 + ndx, 398] : p.side === 0 ? [32, 184 + ndx] : [248 + ndx, 400]; // 선 긋기: 네트가 움직이면 코트도
   if (bossMode) bossBlockMove(p); // 책상 장해물
   p.x = Math.max(mn, Math.min(mx, p.x));
 
@@ -2545,7 +2546,19 @@ const WH_SKILLS = [
     lines: ['"벌점 25점 누적이다!! 어디서 점호를 빼먹어?!"', '"한번 더--!! 오늘 아주 짐 싸서 꺼져라-!!"'] },
   { key: 'clap', title: 'ON-AIR 메가폰: 콤보 레인보우 더블 클랩', en: 'Combo Rainbow Double High-Five Soundwave', col: '255,200,0',
     lines: ['"키 135cm의 스피드를 감당할 수 있겠냐?!"', '"한번 더--!! 전 방송망 생중계 더블 하이파이브 쾅-!!!!"'] },
+  { key: 'line', title: '선 긋기: 레드존 라인 인스펙션', en: 'Red Zone Line — Territory Lock', col: '255,40,60',
+    lines: ['"여기까지가 내 구역이야."', '"넘어오지 마."'] },
 ];
+// (v7.5) 선 긋기: 네트를 내 쪽으로 56(약 1.5m) 당김 → 상대 코트 216 → 272 (약 1.7배), 7초 유지
+let WH_SHIFT = 56, WH_LINE_T = 175, WH_LINE_N = 22; // WH_LINE_N: 스킬 공 속도 (작을수록 빠름)
+function lineShift() { // 지금 네트가 얼마나 움직였나 (게임 상태에서 계산 → 온라인도 똑같음)
+  let d = 0;
+  for (const p of players) if (p.lineT > 0) d = (p.side === 0 ? -1 : 1) * WH_SHIFT * Math.min(1, p.lineT / 12);
+  if (cine && cine.kind === 'wh' && cine.sk && cine.sk.key === 'line' && cine.init && cine.t >= WH_HIT1) d = (cine.caster.side === 0 ? -1 : 1) * WH_SHIFT * EASE_OUT(Math.min(1, (cine.t - WH_HIT1) / 14));
+  return d;
+}
+function EASE_OUT(q) { return 1 - (1 - q) * (1 - q) * (1 - q); }
+function courtClamp(p) { const ndx = NET_X - 216, [mn, mx] = p.boss ? [266 + ndx, 398] : p.side === 0 ? [32, 184 + ndx] : [248 + ndx, 400]; p.x = Math.max(mn, Math.min(mx, p.x)); }
 const WH_TAUNT = {
   start: ['카메라 온 서킷 체크 완료! 135cm의 매운맛을 전교에 생중계한다!', '너 방금 내 키 보고 초등학생이냐고 웃었냐...? 뚝배기 2번 깨질 준비 해라.',
     '기숙사 자치위원 김우현이다. 키 작다고 단속 못 할 줄 알고?!', '키가 작아서 안 보인다고? 눈 깜빡이면 이미 내 2연타에 맞아 있을 거다!'],
@@ -2580,30 +2593,46 @@ function onAirSign(x, y, a, t) {
   ctx.shadowColor = '#ff2020'; ctx.shadowBlur = on ? 18 : 4; ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('● ON AIR', x, y + 4); ctx.restore();
 }
 
-function whSource(c) { const P = c.caster, s = P.side === 0 ? 1 : -1; return { x: P.x + s * 30, y: P.y - 46 }; }
+function whSource(c) { const P = c.caster, s = P.side === 0 ? 1 : -1; return c.sk.key === 'line' ? { x: P.x + s * 18, y: P.y - 26 } : { x: P.x + s * 30, y: P.y - 46 }; }
 function updateWh() {
   const c = cine, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, t = ++c.t;
   players.forEach((p) => p.anim++);
   const [mn, mx] = T.side === 0 ? [44, 176] : [256, 388];
   if (!c.init) { c.init = true; c.parts = []; c.isYean = CHARACTERS[T.char].skill === 'yean'; }
-  if (t <= 12) { const q = t / 12; P.y = P_GROUND_Y - (1 - (1 - q) * (1 - q)) * 100; } // 135cm 광속 도약
-  P.state = JUMP; P.vy = 0;
+  if (k === 'line') { P.y = P_GROUND_Y; P.state = NORMAL; P.vy = 0; if (t >= WH_HIT1) players.forEach(courtClamp); } // 선 긋기: 땅에 선 채로 손짓
+  else { if (t <= 12) { const q = t / 12; P.y = P_GROUND_Y - (1 - (1 - q) * (1 - q)) * 100; } // 135cm 광속 도약
+    P.state = JUMP; P.vy = 0; }
   if (t === 1) { sfx('zap'); shake = 5; }
-  if (t > 2 && t < WH_FIRE && t % 2 === 0) for (let i = 0; i < 2; i++) c.parts.push({ x: P.x + (Math.random() - 0.5) * 200, y: P.y - 40 + (Math.random() - 0.5) * 160, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, t: 24, col: RAINBOW[Math.floor(Math.random() * 7)] });
+  if (t > 2 && t < WH_FIRE && t % 2 === 0) for (let i = 0; i < 2; i++) c.parts.push({ x: P.x + (Math.random() - 0.5) * 200, y: P.y - 40 + (Math.random() - 0.5) * 160, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, t: 24, col: k === 'line' ? (Math.random() < 0.7 ? '255,40,60' : '255,200,200') : RAINBOW[Math.floor(Math.random() * 7)] });
   for (const q of c.parts) { q.x += q.vx; q.y += q.vy; q.t--; }
   c.parts = c.parts.filter((q) => q.t > 0);
   const src = whSource(c);
   if (t < WH_FIRE) { ball.x = src.x; ball.y = src.y; ball.vx = 0; ball.vy = 0; ball.rot += 0.3; }
+  if (k === 'line') { // 찌이잉- 레이저 → 네트 끌어당김
+    if (t === 8) sfx('charge');
+    if (t === WH_B) { sfx('zap'); sfx('zap'); shake = 6; }
+    if (t === WH_HIT1) { sfx('suck'); sfx('thud'); shake = 10; hitStop = 3; }
+    if (t > WH_HIT1 && t < WH_HIT1 + 14 && t % 3 === 0) { shake = Math.max(shake, 4); sfx('whoosh', 0.4); }
+  } else {
   if (t === WH_HIT1) { heavy(src.x, src.y, 1.8); sfx('snap'); sfx('thud'); } // 1차 하이파이브 짝!
   if (t === WH_HIT1 + 6) sfx('charge');
   if (t === WH_FIRE - 1) { hitStop = 4; sfx('suck'); }
+  }
   if (t === WH_FIRE) { // 2차 "한번 더!" 쾅
-    heavy(src.x, src.y, 2.6); sfx('explode'); sfx('flight', 1, 0.7); ball.x = src.x; ball.y = src.y; P.state = JUMP; P.vy = 0;
+    if (k === 'line') { shake = 8; sfx('zap'); sfx('thud'); }
+    else { heavy(src.x, src.y, 2.6); sfx('explode'); sfx('flight', 1, 0.7); ball.x = src.x; ball.y = src.y; P.state = JUMP; P.vy = 0; }
     let msg;
-    if (k === 'broadcast') { releaseBall(Math.max(mn, Math.min(mx, T.x + (Math.random() - 0.5) * 80)), 9); T.freezeT = 20; T.stunned = true; T.lagT = 75; T.lagQ = []; P.fastT = 150; P.jumpT = 150; msg = '방송 특보! 상대 3초 생방송 딜레이 + 나 6초 이속·점프 UP'; }
+    if (k === 'line') { // 7초 동안 네트 당김 유지 + 상대 스파이크 약화 + 넓어진 상대 코트 빈 곳으로 공
+      P.lineT = WH_LINE_T; foes(P).forEach((o) => { o.weakT = Math.max(o.weakT || 0, WH_LINE_T); });
+      const tmn = T.side === 0 ? 44 : NET_X + 44, tmx = T.side === 0 ? NET_X - 44 : 388;
+      const tx = Math.abs(T.x - tmn) > Math.abs(T.x - tmx) ? tmn + 6 : tmx - 6;
+      ball.x = NET_X + s * 30; ball.y = 110; releaseBall(tx, WH_LINE_N); // 상대 코트 위에서 출발 (내 쪽 AI가 바로 다시 안 치게)
+      msg = bossMode ? '' : '선 긋기! 7초간 네트가 내 쪽으로 → 상대 코트 1.7배 + 상대 스파이크 약화'; // 보스전은 bossSkillCounter가 알림
+    }
+    else if (k === 'broadcast') { releaseBall(Math.max(mn, Math.min(mx, T.x + (Math.random() - 0.5) * 80)), 9); T.freezeT = 20; T.stunned = true; T.lagT = 75; T.lagQ = []; P.fastT = 150; P.jumpT = 150; msg = '방송 특보! 상대 3초 생방송 딜레이 + 나 6초 이속·점프 UP'; }
     else if (k === 'evict') { releaseBall(Math.max(mn, Math.min(mx, T.x)), 9); T.freezeT = c.isYean ? 40 : 25; T.stunned = true; T.mana = Math.max(0, T.mana - 2); T.manaLockT = 200; T.slowT = 100; T.slowK = 0.5; msg = c.isYean ? '김예안 락온! 1.6초 스턴 + 8초 마나 봉인 + 감속' : '벌점 25점 집행! 1초 스턴 + 8초 마나 봉인 + 4초 감속'; }
     else { T.mana = 0; for (const f of ['guardT', 'blockT', 'fwT']) T[f] = 0; T.matrixGuard = false; T.courtGuard = false; releaseBall(Math.max(mn, Math.min(mx, (mn + mx) / 2)), 9); ball.pierce = 40; P.ampT = 175; P.mana = Math.min(manaMax(P) - 1, P.mana + 2); T.shrinkT = 125; T.shrinkK = 0.75; msg = '더블 클랩! 방어막 소멸 + 상대 축소 + 나 7초 스파이크 증폭·마나 +2'; }
-    popups.push({ text: msg, x: GW / 2, y: 168, t: 55, color: `rgb(${c.sk.col})` });
+    if (msg) popups.push({ text: msg, x: GW / 2, y: 168, t: 55, color: `rgb(${c.sk.col})` });
     cine = null;
   }
 }
@@ -2613,13 +2642,70 @@ function whCam(c) {
   const ly = P_GROUND_Y - 100, close = { x: P.x, y: ly + 4, z: 2.6 }, src = whSource(c);
   let keys;
   if (k === 'evict') keys = [[0, H], [12, { x: P.x, y: ly + 40, z: 1.8, r: -s * 0.08 }], [WH_B, close], [WH_B + 14, { x: T.x, y: T.y - 10, z: 2.4, r: s * 0.04 }], [WH_HIT1 + 4, { x: src.x, y: src.y, z: 2.2 }], [WH_FIRE - 4, { x: src.x, y: src.y - 20, z: 1.5 }], [WH_FIRE + 1, H]];
+  else if (k === 'line') { const nx = 216 - s * WH_SHIFT;
+    keys = [[0, H], [8, { x: src.x + s * 30, y: src.y - 6, z: 2.5, r: 0 }], [WH_B - 4, { x: src.x + s * 40, y: src.y, z: 2.7, r: 0 }], [WH_B + 12, { x: nx, y: 248, z: 2.4, r: -s * 0.05 }],
+      [WH_HIT1, { x: nx, y: 224, z: 1.7, r: 0 }], [WH_HIT1 + 14, { x: 216, y: 160, z: 1.0, r: 0 }], [WH_FIRE, { x: 216, y: 156, z: 1.04, r: 0 }], [WH_FIRE + 1, H]]; }
   else if (k === 'clap') keys = [[0, H], [WH_B, { ...close, r: 0 }], [WH_HIT1, { x: src.x, y: src.y, z: 2.4, r: s * Math.PI }], [WH_FIRE - 4, { x: src.x, y: src.y, z: 2.0, r: s * Math.PI * 2 }], [WH_FIRE + 1, H]];
   else keys = [[0, H], [WH_B, close], [WH_B + 10, { x: src.x, y: src.y - 30, z: 1.6 }], [WH_HIT1 + 4, { x: src.x, y: src.y - 20, z: 2.2 }], [WH_FIRE - 4, { x: src.x, y: src.y - 50, z: 1.3 }], [WH_FIRE + 1, H]];
   keys.push([WH_END, H]);
   return camKeys(t, keys);
 }
+function drawWhLineWorld() { // 선 긋기 전용 연출 (붉은 레이저)
+  const c = cine, t = c.t, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, src = whSource(c), k = Math.min(1, t / 6);
+  const nx = 216 - s * WH_SHIFT, fy = 276, pull = t >= WH_HIT1 ? Math.min(1, (t - WH_HIT1) / 14) : 0;
+  const g = ctx.createRadialGradient(src.x, src.y, 10, src.x, src.y, 380); g.addColorStop(0, `rgba(70,0,10,${0.72 * k})`); g.addColorStop(1, `rgba(6,0,2,${0.94 * k})`);
+  ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
+  // 디지털 격자 (차가운 감시 화면)
+  ctx.strokeStyle = `rgba(255,40,60,${0.08 * k})`; ctx.lineWidth = 1;
+  for (let x = -40; x < 480; x += 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, fy); ctx.stroke(); }
+  for (let y = 0; y < fy; y += 24) { ctx.beginPath(); ctx.moveTo(-40, y); ctx.lineTo(480, y); ctx.stroke(); }
+  // 바닥 + 코트 타일 (상대 코트는 주름지듯 펼쳐짐)
+  ctx.fillStyle = `rgba(40,4,10,${0.9 * k})`; ctx.fillRect(-100, fy, 640, 60);
+  ctx.fillStyle = `rgba(255,60,80,${0.5 * k})`; ctx.fillRect(-100, fy, 640, 1.5);
+  const far = s > 0 ? GW + 20 : -20, w = Math.abs(far - NET_X);
+  for (let i = 1; i <= 12; i++) {
+    const q = i / 12, wob = pull > 0 && pull < 1 ? Math.sin(q * 14 + t * 0.9) * 5 * (1 - pull) : 0, x = NET_X + s * w * q + wob;
+    ctx.strokeStyle = `rgba(255,${70 + 120 * q},110,${(0.2 + 0.45 * pull) * k})`; ctx.beginPath(); ctx.moveTo(x, fy); ctx.lineTo(x + s * 26 * q, GH + 10); ctx.stroke();
+  }
+  for (let i = 1; i <= 8; i++) { const q = i / 8, x0 = s > 0 ? 0 : NET_X, x1 = s > 0 ? NET_X : GW; ctx.strokeStyle = `rgba(255,60,80,${0.12 * k})`; ctx.beginPath(); ctx.moveTo(x0 + (x1 - x0) * q, fy); ctx.lineTo(x0 + (x1 - x0) * q - s * 14 * q, GH + 10); ctx.stroke(); }
+  if (pull > 0 && pull < 1) for (let i = 0; i < 6; i++) { const y = fy + 4 + i * 4; ctx.fillStyle = `rgba(255,40,60,${0.5 * (1 - pull)})`; ctx.fillRect(Math.min(216, NET_X), y, Math.abs(216 - NET_X), 1.5); } // 끌려가는 붉은 궤적
+  // ① 레이저 인스펙션: 손끝 → 바닥을 훑으며 네트 앞에 선을 긋는다
+  if (t >= 6 && t < WH_B + 6) {
+    const q = Math.min(1, (t - 6) / (WH_B - 6)), sx = P.x + s * 22, dot = sx + (nx - sx) * EASE_OUT(q), fl = (t % 2) * 0.25;
+    ctx.save(); ctx.shadowColor = '#ff2040'; ctx.shadowBlur = 14;
+    ctx.strokeStyle = `rgba(255,40,60,${0.9 - fl})`; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(dot, fy); ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(dot, fy); ctx.stroke();
+    ctx.fillStyle = '#ff3050'; ctx.fillRect(Math.min(sx, dot), fy - 1.5, Math.abs(dot - sx), 3);
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(dot, fy, 3 + Math.sin(t) * 1, 0, 7); ctx.fill();
+    ctx.restore();
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = 'rgba(255,200,210,.8)'; ctx.fillRect(dot + (Math.random() - 0.5) * 10, fy - Math.random() * 8, 1.5, 1.5); }
+  }
+  // ② 선이 그어진 자리에서 붉은 레이저 장막이 솟음
+  if (t >= WH_B) {
+    const q = EASE_OUT(Math.min(1, (t - WH_B) / 10)), h = q * 250, fl = 0.85 + Math.sin(t * 1.7) * 0.15;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const lg = ctx.createLinearGradient(nx - 14, 0, nx + 14, 0); lg.addColorStop(0, 'rgba(255,0,40,0)'); lg.addColorStop(0.5, `rgba(255,30,60,${0.55 * fl})`); lg.addColorStop(1, 'rgba(255,0,40,0)');
+    ctx.fillStyle = lg; ctx.fillRect(nx - 14, fy - h, 28, h);
+    ctx.fillStyle = `rgba(255,220,225,${0.9 * fl})`; ctx.fillRect(nx - 1, fy - h, 2, h);
+    for (let i = 0; i < 6; i++) { const y = fy - ((t * 6 + i * 43) % Math.max(1, h)); ctx.fillStyle = 'rgba(255,120,140,.7)'; ctx.fillRect(nx - 8, y, 16, 1); }
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = q; floorText('RED ZONE', nx - s * 46, fy + 14, 14, '#ff3050'); ctx.restore();
+  }
+  // 네트 (레이저 선을 따라 끌려옴, 잔상)
+  if (pull > 0 && pull < 1) for (let i = 1; i <= 3; i++) { const x = NET_X + s * i * 7 * (1 - pull); ctx.fillStyle = `rgba(255,60,80,${0.35 - i * 0.08})`; ctx.fillRect(x - 3, NET_TOP, 6, GH - NET_TOP); }
+  ctx.fillStyle = '#9a9aa6'; ctx.fillRect(NET_X - 3, NET_TOP, 6, GH - NET_TOP); ctx.fillStyle = '#fff'; ctx.fillRect(NET_X - 5, NET_TOP - 2, 10, 6);
+  if (pull >= 1) { ctx.save(); ctx.globalAlpha = Math.min(1, (t - WH_HIT1 - 14) / 6 + 0.2); text('COURT ×1.7', (NET_X + (s > 0 ? GW : 0)) / 2, 196, 16, '#ff5068'); text('↔', (NET_X + (s > 0 ? GW : 0)) / 2, 214, 14, '#ffb0bc'); ctx.restore(); }
+  for (const q of c.parts) { ctx.fillStyle = `rgba(${q.col},${q.t / 24})`; ctx.fillRect(q.x, q.y, 3, 3); }
+  onAirSign(P.x - s * 40, P.y - 62, Math.min(1, t / 8), t);
+  drawPlayer(P); text('135cm', P.x, P.y + 42, 8, '#ff9aa8');
+  drawPlayer(T);
+  // 상대에게 경고 표시
+  if (t >= WH_HIT1) { const a = Math.floor(t / 4) % 2 ? 1 : 0.5; text('⚠ LINE', T.x, T.y - 52, 9, `rgba(255,70,90,${a})`); }
+  if (t >= WH_HIT1 + 14) drawBall(); // 클로즈업 땐 공 숨김
+}
 function drawWhWorld() {
   if (!cine.init) return; /* 시작 첫 프레임엔 아직 준비 전 */
+  if (cine.sk.key === 'line') { drawWhLineWorld(); return; }
   const c = cine, t = c.t, P = c.caster, T = c.target, sk = c.sk, s = P.side === 0 ? 1 : -1, key = sk.key, src = whSource(c), k = Math.min(1, t / 6);
   const g = ctx.createRadialGradient(P.x, P.y - 20, 10, P.x, P.y - 20, 360); g.addColorStop(0, `rgba(40,0,60,${0.75 * k})`); g.addColorStop(1, `rgba(5,0,15,${0.93 * k})`); ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
   // 무지개 오로라 띠
@@ -2645,13 +2731,31 @@ function drawWhWorld() {
   if (T.stunned) for (let i = 0; i < 3; i++) { const an = t * 0.3 + i * 2.1; text('★', T.x + Math.cos(an) * 16, T.y - 46 + Math.sin(an) * 4, 9, '#ffe066'); }
   drawBall();
 }
+function drawWhLineUI(c) { // 선 긋기: 감시 카메라 HUD + 픽셀 왜곡
+  const t = c.t, k = Math.min(1, t / 6);
+  ctx.save(); ctx.globalAlpha = 0.8 * k; ctx.strokeStyle = '#ff3050'; ctx.lineWidth = 1.5;
+  for (const [x, y, dx, dy] of [[14, 46, 1, 1], [GW - 14, 46, -1, 1], [14, GH - 50, 1, -1], [GW - 14, GH - 50, -1, -1]]) { ctx.beginPath(); ctx.moveTo(x, y + dy * 14); ctx.lineTo(x, y); ctx.lineTo(x + dx * 14, y); ctx.stroke(); }
+  const st = t < WH_B ? 'INSPECTION' + '.'.repeat(1 + (Math.floor(t / 4) % 3)) : t < WH_HIT1 ? 'LINE SET  ▮ RED ZONE' : t < WH_HIT1 + 14 ? 'NET SHIFT  -1.5m' : 'TERRITORY LOCKED  7.0s';
+  ctx.textAlign = 'left'; ctx.font = 'bold 8px monospace'; ctx.fillStyle = '#ff5068'; ctx.fillText('● ' + st, 22, 58); ctx.restore();
+  // 찌이잉-! 순간 픽셀 공간 왜곡 (가로 조각이 어긋남)
+  const zz = (t >= WH_B && t < WH_B + 6) || (t >= WH_HIT1 && t < WH_HIT1 + 5);
+  if (zz) {
+    const cv = ctx.canvas; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    for (let i = 0; i < 9; i++) { const y = Math.floor(Math.random() * cv.height), h = 6 + Math.floor(Math.random() * 30), dx = (Math.random() - 0.5) * 50; ctx.drawImage(cv, 0, y, cv.width, h, dx, y, cv.width, h); }
+    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,0,40,.18)'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore();
+  }
+  if (t >= WH_HIT1 && t < WH_HIT1 + 3) { ctx.fillStyle = `rgba(255,40,60,${0.5 - (t - WH_HIT1) * 0.15})`; ctx.fillRect(0, 0, GW, GH); }
+}
 function drawWhUI(c) {
   const t = c.t, sk = c.sk, key = sk.key, k = Math.min(1, t / 6);
   if (key === 'clap' && t >= 4) { ctx.save(); ctx.globalAlpha = 0.6 * k; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; for (const [x, y, dx, dy] of [[14, 14, 1, 1], [GW - 14, 14, -1, 1], [14, GH - 14, 1, -1], [GW - 14, GH - 14, -1, -1]]) { ctx.beginPath(); ctx.moveTo(x, y + dy * 16); ctx.lineTo(x, y); ctx.lineTo(x + dx * 16, y); ctx.stroke(); } ctx.fillStyle = '#ff2020'; if (Math.floor(t / 8) % 2) { ctx.beginPath(); ctx.arc(30, 60, 4, 0, 7); ctx.fill(); } text('REC  4K 60fps', 74, 64, 8, '#fff'); ctx.restore(); } // 방송부 4K 카메라 뷰
+  if (key === 'line') drawWhLineUI(c);
+  else {
   if (t >= WH_HIT1 && t < WH_HIT1 + 3) { ctx.fillStyle = `rgba(255,255,255,${0.6 - (t - WH_HIT1) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
   if (t >= WH_HIT1 + 4 && t < WH_FIRE + 6) { const q = Math.min(1, (t - WH_HIT1 - 4) / 5), sc = 1 + (1 - q) * 1.8; ctx.save(); ctx.translate(GW / 2, 104); ctx.scale(sc, sc); ctx.rotate(-0.06);
     RAINBOW.forEach((c2, i) => { ctx.fillStyle = `rgb(${c2})`; ctx.font = 'bold 30px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('한번 더-!!', -6 + i, 10 - i * 0.6); }); ctx.fillStyle = '#fff'; ctx.fillText('한번 더-!!', 0, 6); ctx.restore(); }
   if (t >= WH_FIRE - 1 && t < WH_FIRE + 4) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; RAINBOW.forEach((c2, i) => { ctx.fillStyle = `rgba(${c2},.12)`; ctx.fillRect(0, (i * GH) / 7, GW, GH / 7); }); ctx.restore(); }
+  }
   ctx.save(); ctx.globalAlpha = k;
   text(sk.title, GW / 2, 22, 12, `rgb(${sk.col})`); text(sk.en, GW / 2, 34, 8, '#fff');
   if (t >= WH_B - 4) sk.lines.forEach((ln, i) => { const st = i ? WH_HIT1 + 2 : WH_B - 4, n = Math.max(0, Math.min(ln.length, Math.floor((t - st) * 1.8))); if (n <= 0) return; const y = 262 + i * 17; ctx.font = `bold ${i ? 11 : 10}px "Malgun Gothic", sans-serif`; const w = ctx.measureText(ln).width + 16; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(GW / 2 - w / 2, y - 12, w, 16); text(ln.slice(0, n), GW / 2, y, i ? 11 : 10, i ? '#ffe066' : '#fff'); });
@@ -6733,7 +6837,7 @@ function drawE308() {
 //       키 입력은 NET_DELAY 프레임 뒤에 적용 (0.12초) → 인터넷이 조금 느려도 끊기지 않게.
 // 방장 = 왼쪽(파랑), 참가자 = 오른쪽(빨강). 각자 DRGF+Z+Shift 또는 방향키+Enter+; 아무거나 써도 됨.
 // =====================================================================
-const NET_VERSION = 'v7.4-' + NCHAR;
+const NET_VERSION = 'v7.5-' + NCHAR;
 const NET_PREFIX = 'dsvb26-';      // PeerJS 방 이름 앞에 붙는 글자 (방 코드 4자리랑 합쳐짐)
 const NET_DELAY = 3;               // 키 입력 지연 (프레임) — 3 = 0.12초
 // 중계(TURN) 서버 (v7.2.1): 학교 와이파이처럼 직접 연결이 막힌 곳에서 이 서버를 거쳐 우회함.
@@ -7285,7 +7389,7 @@ const SKILL_ELEM = {
   'yean:rage': 'pyro', 'yean:evict': 'order', 'yean:scream': 'phys', 'yean:push': 'order', 'yean:pull': 'cyber',
   'rina:math': 'cyber', 'rina:kor': 'order', 'rina:eng': 'phys', 'rina:sci': 'pyro', 'rina:soc': 'order',
   'jmw:meteor': 'pyro', 'jmw:pinball': 'phys', 'jmw:sonic': 'cyber', 'gm:flash': 'pyro', 'gm:grade3': 'order', 'gm:feint': 'phys',
-  'jjh:chivalry': 'phys', 'jjh:letter': 'pyro', 'jjh:block': 'cyber', 'wh:broadcast': 'cyber', 'wh:evict': 'order', 'wh:clap': 'phys',
+  'jjh:chivalry': 'phys', 'jjh:letter': 'pyro', 'jjh:block': 'cyber', 'wh:broadcast': 'cyber', 'wh:evict': 'order', 'wh:clap': 'phys', 'wh:line': 'order',
   'party:party': 'pyro', 'lite:giant': 'phys', 'lite:whirl': 'phys', 'sock:sock': 'order', 'meteor:meteor': 'pyro',
 };
 const BOSS_TRUE = ['kim:lincoln', 'math:euler', 'history:ship', 'yean:evict', 'cmj:bigbang']; // 확정 득점 스킬 = 쉴드 무시 고정 피해
@@ -7534,6 +7638,7 @@ function bossPostHit(p, inp, info) {
   const D = BOSS_DIFF[bossDiff];
   if (p.boss) { // 보스가 공을 침
     if (B.fx) bossApplyFx(info.by, false);
+    if (B.lineT > 0) { bossDamage(D.dmg * 1.5, { pure: true }); popups.push({ text: 'LINE OUT! 선 넘음 → 쉴드 자해', x: p.x, y: Math.max(84, hitTop(p) - 8), t: 26, color: '#ff4060' }); } // 선 긋기 위반
     if (B.groggyT > 0 || p.freezeT > 0) { ball.vx = -(4 + Math.random() * 3); ball.vy = -15; ball.power = false; } // 그로기: 힘없이 툭 넘김
     else if (B.rageArmed) { // 통제도 100% → 무차별 계도 스파이크
       B.rageArmed = false;
@@ -7606,7 +7711,7 @@ function bossApplyFx(by, landed) { // 보낸 공이 보스(또는 보스 코트)
   const D = BOSS_DIFF[bossDiff], b = players[1];
   if (B.orbs && B.orbs.length) { if (!f.send) bossOrbHit(f.elem, f.i, false); return; } // 페이즈 3 무적: 궤도성 부수기
   if (f.send) { bossDamage(D.dmg * 0.3, { elem: f.elems[0], src: f.i, quiet: true, y: by }); return; }
-  const top = hitTop(b), head = !landed && by < top + (b.y + 32 - top) * 0.3;
+  const top = hitTop(b), head = !landed && (B.lineT > 0 || by < top + (b.y + 32 - top) * 0.3); // 선 긋기 중엔 히트박스 2배 → 머리 확정
   let dmg = D.dmg * f.judge * f.combo * rallyMult(B.rallyCnt) * (head ? 1.5 : 1);
   const o = { elem: f.elem, src: f.i, y: by };
   if (B.pullT > 0) { dmg *= 1.5; o.pure = true; B.pullT = 0; bossPop('인력 붕괴 적중! x1.5', '#ff6a6a', 96, 24); }
@@ -7661,6 +7766,7 @@ function bossTick() {
   const D = BOSS_DIFF[bossDiff], b = players[1];
   if (--B.time <= 0) { B.time = 0; bossEnd(false, '시간 초과'); return; }
   if (B.hurtT > 0) B.hurtT--;
+  if (B.lineT > 0) B.lineT--;
   if (B.buffT > 0) B.buffT--;
   if (B.fusion && --B.fusion.t <= 0) B.fusion = null;
   if (B.judge && --B.judge.t <= 0) B.judge = null;
@@ -7766,7 +7872,8 @@ function bossSkillKey(c) { return c.kind + ':' + (c.hero ? c.hero.key : c.sk ? c
 function bossSkillHit(c) { // 스킬 연출이 끝남 → 보스 피해
   const B = BOSS, D = BOSS_DIFF[bossDiff], p = c.caster, i = bossIdx(p);
   if (!B || i < 0 || B.clearing) return;
-  const key = bossSkillKey(c), elem = SKILL_ELEM[key] || autoElem(p);
+  const key = bossSkillKey(c); let elem = SKILL_ELEM[key] || autoElem(p);
+  if (key === 'wh:line' && B.sh > 0 && WEAK[B.shElem] === 'cyber') elem = 'cyber'; // 선 긋기 = 규율·전뇌 융합 (쉴드 약점 쪽으로)
   if (c.banned) { // 소지품 검사: 압수된 속성 스킬
     B.partyHp = Math.max(0, B.partyHp - (D.pen >= 99 ? 99 : 1)); B.rage += 10;
     bossPop(`🚫 압수! ${ELEM[elem].name} 스킬은 금지 → 효과 없음 + 파티 HP -1`, '#ff5a5a', 100, 50);
@@ -8306,7 +8413,7 @@ function bossTickCommon(D, b) {
   // 캐스팅 진행 (보스가 멈칫·그로기면 강제 취소)
   if (B.cast) {
     if (b.freezeT > 0 || B.groggyT > 0) { bossPop(`스턴! ${B.cast.name} 캐스팅 강제 취소`, '#7dff9a', 130, 34); B.cast = null; B.rallyG += 15; B.spots = []; }
-    else { B.cast.t += b.slowT > 0 ? 0.5 : 1; if (B.cast.t >= B.cast.dur) bossCastDone(B.cast.k); }
+    else { B.cast.t += b.slowT > 0 || B.lineT > 0 ? 0.5 : 1; if (B.cast.t >= B.cast.dur) bossCastDone(B.cast.k); }
   }
   // 굴절 마구: 잔상을 남기며 꺾임
   if (ball.bend) {
@@ -8429,6 +8536,7 @@ function bossAutoPick(c) {
     [!!(B.bendArmed || ball.bend), 'math', 'blade', '행렬 대검 → 굴절 마구 방어'],
     [B.desks.length > 0 || B.mobs.length > 0 || B.bombs.length > 0 || fakesOn, 'yean', 'push', '신라천정 → 장해물·잡몹·투사체 전부 반사'],
     [!!(B.cast || B.gaze || B.rageArmed), 'yean', 'pull', '만상천인 → 캐스팅 즉시 취소'],
+    [!!(B.cast || B.exec || B.gaze), 'wh', 'line', '선 긋기 → 캐스팅 50% 둔화 + 히트박스 2배'],
   ];
   for (const [on, kind, key, msg] of rules) {
     if (!on || c.kind !== kind) continue;
@@ -8452,6 +8560,10 @@ function bossAutoPick(c) {
 function bossSkillCounter(c, key, elem, i) {
   const B = BOSS, D = BOSS_DIFF[bossDiff];
   const clutch = (n = 1) => (B.stats.clutch[i] += n);
+  if (key === 'wh:line') { // 7초: 보스 코트 1.7배 + 보스 감속(리시브 거의 불가) + 히트박스 2배(머리 확정) + 선 넘으면 자해 + 캐스팅 50% 둔화
+    const b = players[1]; B.lineT = WH_LINE_T; b.slowT = Math.max(b.slowT || 0, WH_LINE_T); b.slowK = 0.4;
+    bossPop('선 긋기! 7초간 보스 코트 ×1.7 · 히트박스 2배 · 선 넘으면 자해', '#ff4060', 104, 50); clutch();
+  }
   if (B.ban && (key === 'rina:soc' || key === 'kim:vote')) { B.ban = null; B.banNext = key === 'kim:vote' ? Math.max(D.ban, 250) + 250 : D.ban; bossPop(key === 'kim:vote' ? '탄핵 소추! 검사 권한 봉인' : '헌법 제1조! 압수령 무효', '#ffd23f', 104, 44); clutch(); B.rallyG += 15; }
   if (B.mobs.length && ['math:rail', 'wh:clap', 'jmw:meteor', 'party:party'].includes(key)) { B.mobs = []; bossDamage(D.dmg * 2, { elem, src: i, quiet: true }); bossPop('선도부 제거! 장막 해제', '#7dff9a', 104, 44); clutch(); B.rallyG += 15; }
   if (B.cast && B.cast.k === 'mute' && c.kind === 'yean') { B.cast = null; bossDamage(D.dmg * 12, { elem: 'phys', src: i }); bossPop('맞불 샤우팅! 보스 코트에 음파 대폭발', '#78c8ff', 104, 50); shake = 16; clutch(2); }
@@ -8857,12 +8969,11 @@ function mobileSync() { // 상황에 맞게 버튼 보이기/숨기기
 { const mv = document.querySelector('meta[name=viewport]'); if (mv) mv.content = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'; }
 document.body.style.touchAction = 'none'; document.body.style.userSelect = 'none'; document.body.style.webkitUserSelect = 'none';
 
-// ===== 시작 로딩 화면 (v7.3) — 검은 화면 'made by 경목' → 로딩 중... → 메인 화면 (약 3초) =====
+// ===== 시작 로딩 화면 (v7.3, v7.5 마인크래프트 월드 로딩 느낌) — 검은 화면 'made by 경목' → 코트 불러오는 중 → 메인 화면 (약 6초) =====
 // 게임 상태는 안 바꾸고 화면 위에 덮어서 그림. 테스트 자동화(Playwright)에서는 건너뜀.
-const INTRO_MADE = 30, INTRO_END = 75;                 // 25FPS 기준: 1.2초 / 3초
-const INTRO_SQ = ['RARE', 'EPIC', 'MYTHIC', 'ULTRA', 'LEGENDARY', 'COMMON']; // 둘레 네모 색 = 등급 색
-const INTRO_TIPS = ['공중에서 공격 + 방향키 = 스파이크 방향이 바뀌어', '땅에서 공격 + 좌우 = 다이빙', '마나가 다 차면 스킬!', '등급이 높을수록 시네마틱이 화려해', '15점 먼저 내면 승리'];
-const INTRO = { t: navigator.webdriver ? INTRO_END : 0, tip: INTRO_TIPS[Math.floor(Math.random() * INTRO_TIPS.length)] };
+const INTRO_MADE = 30, INTRO_END = 150;                // 25FPS 기준: 1.2초 / 6초
+const INTRO_TIPS = ['공중에서 공격 + 방향키 = 스파이크 방향이 바뀌어', '땅에서 공격 + 좌우 = 다이빙', '마나가 다 차면 스킬!', '등급이 높을수록 시네마틱이 화려해', '15점 먼저 내면 승리', '스파이크가 공에 맞을 때마다 마나 1칸', '키다리·김지연은 마나 3칸이면 스킬!', '차명준은 마나 6칸… 대신 시네마틱 7종', '스파이크 방향은 7가지! 아래로 꽂으면 제일 빨라', '네트 가까이에서 내리꽂아야 잘 들어가', '다이빙으로 멀리 떨어지는 공도 살릴 수 있어', '확정 득점 스킬은 LEGENDARY·ULTRA만 가지고 있어', '스킬이 끝나면 진짜 공이 날아와. 받을 수 있어!', '방어막이 있으면 바닥에 떨어진 공도 막아 줘', '주지혁은 상대가 여자인지 남자인지에 따라 인격이 바뀐대', '김두현의 숙성 양말 서브… 자기 팀 점수가 깎일 수도?', '송리나는 상대 스파이크를 25% 오답 처리해', '김민주를 상대할 땐 독재를 조심해', '김지연 회오리에 닿은 공은 세게 날아가', '원더재원 파티 중엔 팬 10명이 빈 곳을 노려', '김우현은 135cm라 작지만 손바닥은 무지개만큼 커', '김예안과 김두현이 붙으면… 무슨 일이 생길까?', '혼자 플레이는 난이도 3가지! 어려움은 진짜 잘해', '캐릭터를 안 고르면 AI가 랜덤으로 골라 줘', '온라인 대전은 4자리 방 코드로 친구랑!', '온라인 2대2는 빈 자리를 AI가 채워 줘', '보스전은 혼자·둘이·온라인 협동 다 돼', '보스 쉴드 약점 속성을 노리면 데미지 2배!', '보스전: 3단 연계를 하면 데미지가 3배', '보스전: 보스 머리를 맞히면 데미지 1.5배', '보스전: 랠리가 길어질수록 데미지 배율이 올라가', '보스전: 선생님이 돌아볼 땐 움직이지 마!', '보스전: 기믹 중에 스킬을 쓰면 대응 스킬이 자동으로 골라져', '보스를 깨면 클리어 인증서를 PNG로 저장할 수 있어', '백스페이스 3번 = 처음 화면으로', 'Esc = 뒤로 가기', '휴대폰은 메뉴의 모바일 플레이(베타)로!', '화면을 클릭·터치해서 메뉴를 고를 수도 있어', '모든 효과음과 음악은 코드로 직접 만들었어', '게임 속 캐릭터는 전부 진짜 친구들이야'];
+const INTRO = { t: navigator.webdriver ? INTRO_END : 0, tips: (() => { const a = Math.floor(Math.random() * INTRO_TIPS.length); return [INTRO_TIPS[a], INTRO_TIPS[(a + 1 + Math.floor(Math.random() * (INTRO_TIPS.length - 1))) % INTRO_TIPS.length]]; })() }; // 팁 2개 (중간에 바뀜)
 { const baseU = update; update = function () {
   if (INTRO.t < INTRO_END) { INTRO.t++; pressed.clear(); return; } // 로딩 중엔 입력 무시
   baseU();
@@ -8877,36 +8988,71 @@ function drawIntro() {
     c.restore(); return;
   }
   const k = t - INTRO_MADE, dur = INTRO_END - INTRO_MADE;
-  c.globalAlpha = Math.min(1, k / 5, (INTRO_END - t) / 6); // 들어올 때·나갈 때 페이드 (나갈 땐 메인 화면이 비쳐 보임)
-  // ② 배경: 밤하늘 + 도트 잔디·흙
-  const g = c.createLinearGradient(0, 0, 0, GH); g.addColorStop(0, '#0d1a33'); g.addColorStop(0.6, '#1d3557'); g.addColorStop(1, '#0a0a0a');
-  c.fillStyle = g; c.fillRect(0, 0, GW, GH);
-  for (let x = 0; x < GW; x += 8) { const h = (x * 37) % 3; c.fillStyle = '#2f6b2a'; c.fillRect(x, 232 + h * 2, 8, 8); c.fillStyle = '#5a3a1e'; c.fillRect(x, 240 + h * 2, 8, 64); c.fillStyle = '#4a2f18'; if ((x / 8) % 3 === 1) c.fillRect(x + 2, 254, 3, 3); }
-  const vg = c.createRadialGradient(GW / 2, GH / 2, 60, GW / 2, GH / 2, 260); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.7)');
-  c.fillStyle = vg; c.fillRect(0, 0, GW, GH);
-  // ③ 가운데 네모 + 둘레 등급 색 네모 (차례대로 반짝)
-  const cx = GW / 2, cy = 116, on = Math.floor(k / 3) % 6;
-  INTRO_SQ.forEach((gr, i) => {
-    const sx = cx + (i < 3 ? -58 : 58), sy = cy + ((i % 3) - 1) * 38, lit = i === on, s = lit ? 14 : 10;
-    c.fillStyle = GRADE_COLOR[gr]; if (lit) { c.shadowColor = GRADE_COLOR[gr]; c.shadowBlur = 12; }
-    c.fillRect(Math.round(sx - s / 2), Math.round(sy - s / 2), s, s); c.shadowBlur = 0;
-  });
-  c.fillStyle = '#000'; c.fillRect(cx - 34, cy - 34, 68, 68);
-  c.fillStyle = '#9a9a9a'; c.fillRect(cx - 30, cy - 30, 60, 60);
-  c.fillStyle = '#000'; c.fillRect(cx - 20, cy - 20, 40, 40);
-  const sp = Math.min(1, k / (dur - 6)); // 진행도 0 → 1
-  c.strokeStyle = GRADE_COLOR[INTRO_SQ[on]]; c.lineWidth = 2; c.strokeRect(cx - 18, cy - 18, 36, 36);
-  // 가운데: 도트 배구공이 통통 튀며 빙글
-  c.save(); c.translate(cx, cy + 2 - Math.abs(Math.sin(k * 0.35)) * 8); c.rotate(k * 0.3);
-  c.fillStyle = '#fff'; c.fillRect(-10, -10, 20, 20); c.fillStyle = '#ffd23f'; c.fillRect(-10, -3, 20, 6); c.fillStyle = '#3d8bff'; c.fillRect(-3, -10, 6, 20);
-  c.restore();
-  // ④ 로딩 중... + 진행 막대 + 팁
-  c.fillStyle = '#fff'; c.font = 'bold 13px "Malgun Gothic", sans-serif';
-  c.fillText('로딩 중' + '.'.repeat(1 + (Math.floor(k / 5) % 3)), cx, 182);
-  const bw = 160, bx = cx - bw / 2, by = 198;
-  c.fillStyle = '#000'; c.fillRect(bx - 2, by - 2, bw + 4, 10); c.fillStyle = '#333'; c.fillRect(bx, by, bw, 6);
-  for (let i = 0; i < Math.floor(sp * 16); i++) { c.fillStyle = i % 2 ? '#3ccf5a' : '#4fe36c'; c.fillRect(bx + i * 10, by, 10, 6); }
-  c.fillStyle = 'rgba(255,255,255,0.75)'; c.font = 'bold 9px "Malgun Gothic", sans-serif'; c.fillText('TIP · ' + INTRO.tip, cx, 222);
+  c.globalAlpha = Math.max(0, Math.min(1, (INTRO_END - t) / 8)); // 나갈 때 흐린 화면이 걷히며 메인 화면이 선명해짐
+  // ② 배경: 뒤에 있는 메인 화면을 흐릿하게 (마인크래프트 월드 로딩 느낌 — 그림은 전부 코드로)
+  const cv = c.canvas;
+  if (!INTRO.bg) INTRO.bg = document.createElement('canvas');
+  const bg = INTRO.bg; if (bg.width !== cv.width || bg.height !== cv.height) { bg.width = cv.width; bg.height = cv.height; }
+  const bc = bg.getContext('2d'); bc.clearRect(0, 0, bg.width, bg.height); bc.drawImage(cv, 0, 0);
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = '#000'; c.fillRect(0, 0, cv.width, cv.height);
+  c.filter = 'blur(8px)'; c.drawImage(bg, -24, -16, cv.width + 48, cv.height + 32); c.filter = 'none';
+  c.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+  c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, 0, GW, GH);
+  const cx = GW / 2, sp = Math.min(1, k / (dur - 12)); // 진행도 0 → 1
+  // ③ 코트 불러오는 중... + 얇은 진행 막대
+  c.shadowColor = 'rgba(0,0,0,0.85)'; c.shadowOffsetX = 1; c.shadowOffsetY = 1;
+  c.fillStyle = '#fff'; c.font = 'bold 12px "Malgun Gothic", sans-serif';
+  c.fillText(sp < 1 ? '코트 불러오는 중' + '.'.repeat(1 + (Math.floor(k / 5) % 3)) : '준비 완료!', cx, 70);
+  c.shadowColor = 'transparent'; c.shadowOffsetX = 0; c.shadowOffsetY = 0;
+  const bw = 190, bx = cx - bw / 2, by = 84;
+  c.fillStyle = '#000'; c.fillRect(bx - 1, by - 1, bw + 2, 4);
+  c.fillStyle = '#4fe36c'; c.fillRect(bx, by, Math.round(bw * sp), 2);
+  // ④ 가운데 지도: 칸이 가운데부터 바깥으로 하나씩 채워지며 위에서 본 배구 코트가 나타남
+  const N = 17, cs = 5, mw = N * cs, mx = Math.round(cx - mw / 2), my = 100, mid = (N - 1) / 2;
+  c.fillStyle = '#000'; c.fillRect(mx - 5, my - 5, mw + 10, mw + 10);
+  c.fillStyle = '#7d7d7d'; c.fillRect(mx - 2, my - 2, mw + 4, mw + 4);
+  c.fillStyle = '#141414'; c.fillRect(mx, my, mw, mw);
+  const front = sp * (mid + 1.2);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const h = (((i + 3) * 73856093) ^ ((j + 7) * 19349663)) >>> 0, r = (h % 1000) / 1000;
+    const d = Math.max(Math.abs(i - mid), Math.abs(j - mid)) + r * 0.9;
+    if (d > front + 1.4) continue;
+    let col;
+    if (d > front) col = (h & 1) ? '#5c5c5c' : '#6a6a6a'; // 만드는 중 (회색)
+    else {
+      const court = i >= 2 && i <= 14 && j >= 5 && j <= 11, edge = court && (i === 2 || i === 14 || j === 5 || j === 11);
+      if (i === 8 && j >= 4 && j <= 12) col = j === 4 || j === 12 ? '#3a3a3a' : '#f4f4f4'; // 네트 + 기둥
+      else if (edge) col = '#ffffff';
+      else if (court) col = (i + j) % 2 ? '#e8b04a' : '#dca043';           // 코트 바닥
+      else if (i === 11 && j === 2) col = '#ffd23f';                       // 배구공
+      else if (r > 0.86) col = '#2f6b2a';                                  // 나무
+      else if (j >= 14 && i >= 3 && i <= 13) col = (r > 0.5) ? '#3d74d8' : '#4a82e6'; // 아래쪽 연못
+      else col = r > 0.45 ? '#5aa63c' : '#4e9634';                         // 잔디
+    }
+    c.fillStyle = col; c.fillRect(mx + i * cs, my + j * cs, cs, cs);
+  }
+  c.shadowColor = 'rgba(0,0,0,0.85)'; c.shadowOffsetX = 1; c.shadowOffsetY = 1;
+  c.fillStyle = '#fff'; c.font = 'bold 10px "Malgun Gothic", sans-serif';
+  c.fillText(Math.floor(sp * 100) + '%', cx, my + mw + 16);
+  c.fillStyle = 'rgba(255,255,255,0.8)'; c.font = 'bold 9px "Malgun Gothic", sans-serif'; c.fillText('TIP · ' + INTRO.tips[k < dur / 2 ? 0 : 1], cx, 240);
+  c.shadowColor = 'transparent';
+  if (k < 6) { c.globalAlpha = 1 - k / 6; c.fillStyle = '#000'; c.fillRect(0, 0, GW, GH); } // 검은 화면에서 부드럽게 넘어옴
   c.restore();
 }
 { const baseD = draw; draw = function () { baseD(); if (INTRO.t < INTRO_END) drawIntro(); }; }
+
+// ===== (v7.5) 김우현 '선 긋기' — 네트 위치 계산 + 7초 동안 붉은 레이저 장막 =====
+{ const baseU = update; update = function () { NET_X = 216 + lineShift(); baseU(); }; }
+function drawRedLine() {
+  const L = players.find((p) => p.lineT > 0); if (!L || cine) return;
+  const a = Math.min(1, L.lineT / 12), fl = 0.8 + Math.sin(L.lineT * 1.3) * 0.2, x = NET_X, fy = 276;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const lg = ctx.createLinearGradient(x - 12, 0, x + 12, 0); lg.addColorStop(0, 'rgba(255,0,40,0)'); lg.addColorStop(0.5, `rgba(255,30,60,${0.35 * a * fl})`); lg.addColorStop(1, 'rgba(255,0,40,0)');
+  ctx.fillStyle = lg; ctx.fillRect(x - 12, 30, 24, fy - 30);
+  ctx.fillStyle = `rgba(255,200,210,${0.55 * a * fl})`; ctx.fillRect(x - 0.75, 30, 1.5, fy - 30);
+  ctx.fillStyle = `rgba(255,40,60,${0.5 * a})`; ctx.fillRect(x - 40, fy, 80, 2);
+  ctx.restore();
+  ctx.save(); ctx.globalAlpha = a; text('RED ZONE ' + Math.ceil(L.lineT / 25), x, 26, 8, '#ff5068'); ctx.restore();
+}
+{ const baseNet = drawNet; drawNet = function () { baseNet(); drawRedLine(); }; }
