@@ -103,7 +103,7 @@ function loadImg(key, src) {
 }
 for (const [k, src] of Object.entries(CONFIG.IMAGES)) loadImg(k, src);
 CHARACTERS.forEach((c, i) => { if (c.img) loadImg('char' + i, c.img); });
-/* 308호 엔딩 컷씬 전용 사진 (게임 캐릭터 사진과 따로) */
+/* 508호 엔딩 컷씬 전용 사진 (게임 캐릭터 사진과 따로) */
 loadImg('cineKdh', 'assets/cine_kdh.png'); loadImg('cineYean', 'assets/cine_yean.png'); loadImg('cineYeanFace', 'assets/cine_yean_face.png');
 
 // ===== 키 입력 =====
@@ -712,7 +712,7 @@ function step(scoring) {
       players.forEach((p) => { p.y = P_GROUND_Y; p.vy = 0; p.skillT = 0; });
       state = 'over';
       timer = 0;
-      if (is308()) { state = 'e308'; e3Start(); } /* 김예안 vs 김두현: 308호 엔딩 */
+      if (is308()) { state = 'e308'; e3Start(); } /* 김예안 vs 김두현: 508호 엔딩 */
     } else {
       state = 'slow';
       timer = 0; slowTick = 0;
@@ -5533,7 +5533,7 @@ function updateSelect() {
 const powerPressed = () => pressed.has('KeyZ') || pressed.has('Enter');
 
 function update() {
-  if ((state === 'play' || state === 'slow' || state === 'fadeOut' || state === 'ready') && pressed.has('KeyM') && is308()) { /* M = 경기 중단하고 308호 엔딩 */
+  if ((state === 'play' || state === 'slow' || state === 'fadeOut' || state === 'ready') && pressed.has('KeyM') && is308()) { /* M = 경기 중단하고 508호 엔딩 */
     winner = players[0].score >= players[1].score ? 0 : 1; players[winner].state = WIN; players[1 - winner].state = LOSE; cine = null; fade = 0; state = 'e308'; e3Start();
   }
   if (restartReq) {
@@ -6186,7 +6186,7 @@ function draw() {
   }
   if (!isMenu() && !bossMode) players.forEach(drawMana);
   if (bossMode && !isMenu()) drawBossHUD();
-  if (!isMenu() && !bossMode && state !== 'over' && state !== 'select' && is308()) { ctx.fillStyle = 'rgba(20,6,20,.6)'; ctx.fillRect(GW / 2 - 52, 284, 104, 14); ctx.globalAlpha = 0.75 + Math.sin(performance.now() / 300) * 0.2; text('M = 308호 엔딩 보기', GW / 2, 294, 9, '#ffd0e0'); ctx.globalAlpha = 1; }
+  if (!isMenu() && !bossMode && state !== 'over' && state !== 'select' && is308()) { ctx.fillStyle = 'rgba(20,6,20,.6)'; ctx.fillRect(GW / 2 - 52, 284, 104, 14); ctx.globalAlpha = 0.75 + Math.sin(performance.now() / 300) * 0.2; text('M = 508호 엔딩 보기', GW / 2, 294, 9, '#ffd0e0'); ctx.globalAlpha = 1; }
   drawPopups();
 
   if (state === 'title' || state === 'startFadeOut') {
@@ -6407,20 +6407,20 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
-// ===== 엔딩 컷씬: 308호의 마지막 점호 (김예안 vs 김두현 경기가 끝나면 나옴) =====
+// ===== 엔딩 컷씬: 508호의 마지막 점호 (김예안 vs 김두현 경기가 끝나면 나옴) =====
 // 산나비 느낌: 도트(작은 캔버스를 크게 키움) + 색수차 + 글리치 + 레터박스 + 낙엽
 let e3 = null;
 const E3_W = 216, E3_H = 152, E3_FLOOR = 112;
 const E3_LEAF = ['#d9622b', '#e8a33a', '#b8342a', '#f2c14e', '#8c3b1f', '#c9541f'];
 const E3_LS = [['.##..', '####.', '.##.#'], ['...#', '.##.', '###.', '##..'], ['####.', '....#'], ['##..', '###.', '.##.', '...#']].map((f) => { const o = []; f.forEach((r, y) => [...r].forEach((c, x) => { if (c === '#') o.push([x, y]); })); return o; }); /* 낙엽 도트 모양 (빙글빙글 4프레임) */
 const E3_TALK = [
-  { sp: 'y', lines: ['......308호 문 열 때마다 나던 그 거지 같은 꼬린내.', '이제... 다시는 안 나겠네.'] },
+  { sp: 'y', lines: ['......508호 문 열 때마다 나던 그 거지 같은 꼬린내.', '이제... 다시는 안 나겠네.'] },
   { sp: 'd', lines: ['...미안하다, 예안아.', '빨래도 자주 하고... 냄새 안 나게 하려고 진짜 노력했는데......', '나 때문에 너까지 쫓겨나게 돼서...'] },
   { sp: 'y', two: true, glitch: true, tear: true, lines: ['......쓸데없는 소리 하지 마, 이 멍청아.', '방 넓어져서 존나 시원하다...... 시원해서 미치겠다고, 씨발......'] },
-  { sp: 'd', two: true, lines: ['......고마웠어. 308호 룸메 해줘서.'] },
+  { sp: 'd', two: true, lines: ['......고마웠어. 508호 룸메 해줘서.'] },
 ];
-const E3_LOG = ['[ SYSTEM LOG : 기숙사 308호 / 벌점 25점 초과 ]', '[ 상태: 강제 퇴실 수속 집행 중... ]'];
-const E3_BYE = ['잘 가라!!', '308호 잊지 마!', '연락해라!', '냄새는 두고 가...', '울지 마 예안아', '양말은 챙겨 가!', '보고 싶을 거다', '308호 영원하라!'];
+const E3_LOG = ['[ SYSTEM LOG : 기숙사 508호 / 벌점 25점 초과 ]', '[ 상태: 강제 퇴실 수속 집행 중... ]'];
+const E3_BYE = ['잘 가라!!', '508호 잊지 마!', '연락해라!', '냄새는 두고 가...', '울지 마 예안아', '양말은 챙겨 가!', '보고 싶을 거다', '508호 영원하라!'];
 function is308() { if (duo || (bossMode && !boss308Ready())) return false; const s = players.map((p) => (CHARACTERS[p.char] || {}).skill); return s.includes('yean') && s.includes('sock'); }
 function e3Canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 function e3Leaf(any) { return { x: Math.random() * (E3_W + 40) - 20, y: any ? Math.random() * E3_H : -6 - Math.random() * 30, vy: 0.25 + Math.random() * 0.3, ph: Math.random() * 7, sw: 0.3 + Math.random() * 0.5, vx: 0, big: Math.random() < 0.25, col: E3_LEAF[Math.floor(Math.random() * E3_LEAF.length)], f: Math.floor(Math.random() * 4) }; }
@@ -6626,9 +6626,9 @@ function e3Yard(x, t) { // 기숙사 앞마당: 파스텔 노을 + 커다란 단
   // 가지에 걸린 리본 + 사직서 종이 (살랑살랑)
   for (const [bx, by, len, col] of [[34, 50, 16, '#7ab8ff'], [44, 54, 22, '#f6e05a'], [76, 52, 18, '#b48aff'], [92, 48, 14, '#ff8aa8']]) for (let i = 0; i < len; i++) { x.fillStyle = i % 4 < 2 ? col : '#ffffff'; x.fillRect(bx + Math.round(Math.sin(t * 0.05 + i * 0.3 + bx) * (i / len) * 2), by + i, 1, 1); }
   for (const [bx, by] of [[66, 58], [24, 52]]) { const sw = Math.round(Math.sin(t * 0.06 + bx) * 1.5); x.fillStyle = '#fffdf6'; x.fillRect(bx + sw, by, 6, 8); x.fillStyle = '#c01030'; x.fillRect(bx + sw + 1, by + 2, 4, 1); x.fillRect(bx + sw + 1, by + 4, 3, 1); x.fillStyle = '#5a2e46'; x.fillRect(bx + 2, by - 4, 1, 4); }
-  // 짐 (퇴실 캐리어 + 308 박스)
+  // 짐 (퇴실 캐리어 + 508 박스)
   x.fillStyle = '#2a1626'; x.fillRect(143, E3_FLOOR - 15, 12, 15); x.fillStyle = '#3a6ab8'; x.fillRect(144, E3_FLOOR - 14, 10, 14); x.fillStyle = '#5a8ad8'; x.fillRect(145, E3_FLOOR - 13, 2, 12); x.fillStyle = '#2a1626'; x.fillRect(147, E3_FLOOR - 18, 4, 1); x.fillRect(147, E3_FLOOR - 18, 1, 3); x.fillRect(150, E3_FLOOR - 18, 1, 3);
-  x.fillStyle = '#2a1626'; x.fillRect(156, E3_FLOOR - 11, 13, 11); x.fillStyle = '#c89a5a'; x.fillRect(157, E3_FLOOR - 10, 11, 10); x.fillStyle = '#a87a3a'; x.fillRect(157, E3_FLOOR - 10, 11, 2); x.fillStyle = '#2a1626'; x.font = 'bold 5px monospace'; x.fillText('308', 162.5, E3_FLOOR - 2);
+  x.fillStyle = '#2a1626'; x.fillRect(156, E3_FLOOR - 11, 13, 11); x.fillStyle = '#c89a5a'; x.fillRect(157, E3_FLOOR - 10, 11, 10); x.fillStyle = '#a87a3a'; x.fillRect(157, E3_FLOOR - 10, 11, 2); x.fillStyle = '#2a1626'; x.font = 'bold 5px monospace'; x.fillText('508', 162.5, E3_FLOOR - 2);
   // 잔디 + 흙층
   x.fillStyle = '#4fae5e'; x.fillRect(0, E3_FLOOR, E3_W, 5); x.fillStyle = '#7ad67a'; for (let i = 0; i < E3_W; i += 3) x.fillRect(i, E3_FLOOR - ((i * 7) % 5 === 0 ? 2 : 1), 1, 2); x.fillStyle = '#3e9a52'; x.fillRect(0, E3_FLOOR + 4, E3_W, 1);
   x.fillStyle = '#6a3e2e'; x.fillRect(0, E3_FLOOR + 5, E3_W, E3_H); x.fillStyle = '#58301f'; for (let i = 0; i < 30; i++) x.fillRect((i * 29) % E3_W, E3_FLOOR + 8 + ((i * 13) % 20), 3, 2); x.fillStyle = '#4a2618'; x.fillRect(0, E3_FLOOR + 16, E3_W, 1);
@@ -6676,17 +6676,17 @@ function e3Scene(x) {
   // 슬픈 장면이라 대사·타구 때는 색을 살짝 가라앉힘
   if (e.ph === 'talk' || e.ph === 'tear') { x.fillStyle = 'rgba(40,20,60,.22)'; x.fillRect(0, 0, E3_W, E3_H); }
   if (ip >= 14) { x.fillStyle = 'rgba(30,6,20,.45)'; x.fillRect(0, 0, E3_W, E3_H); }
-  // "308호 퇴실 완료" 각인 (도트 글씨)
+  // "508호 퇴실 완료" 각인 (도트 글씨)
   if (ip >= 24) {
     const q = Math.min(1, (ip - 24) / 6), sc = 1 + (1 - q) * 1.6;
     x.save(); x.translate(108, 70); x.scale(sc, sc); x.globalAlpha = q; x.textAlign = 'center'; x.font = 'bold 15px "Malgun Gothic", sans-serif';
-    x.fillStyle = '#05030a'; x.fillText('[ 308 호  퇴 실  완 료 ]', 1, 1 + 5); x.fillStyle = '#ffb0b8'; x.fillText('[ 308 호  퇴 실  완 료 ]', -1, -1 + 5); x.fillStyle = '#ff2a3a'; x.fillText('[ 308 호  퇴 실  완 료 ]', 0, 5);
+    x.fillStyle = '#05030a'; x.fillText('[ 508 호  퇴 실  완 료 ]', 1, 1 + 5); x.fillStyle = '#ffb0b8'; x.fillText('[ 508 호  퇴 실  완 료 ]', -1, -1 + 5); x.fillStyle = '#ff2a3a'; x.fillText('[ 508 호  퇴 실  완 료 ]', 0, 5);
     x.fillStyle = '#ff2a3a'; for (let i = -100; i < 100; i += 3) { x.fillRect(i, -12, 2, 1); x.fillRect(i, 18, 2, 1); }
     x.restore();
   }
 }
 
-// ----- 4막: 텅 빈 308호 -----
+// ----- 4막: 텅 빈 508호 -----
 function e3Room(x) {
   const e = e3, t = e.t;
   const g = x.createLinearGradient(0, 0, 0, E3_H); g.addColorStop(0, '#120d1c'); g.addColorStop(1, '#1e1628'); x.fillStyle = g; x.fillRect(0, 0, E3_W, E3_H);
@@ -6694,9 +6694,9 @@ function e3Room(x) {
   x.fillStyle = '#3a2c3a'; x.fillRect(128, 26, 56, 44); x.fillStyle = '#0d1630'; x.fillRect(130, 28, 52, 40); x.fillStyle = '#3a2c3a'; x.fillRect(155, 28, 2, 40); x.fillRect(130, 47, 52, 2);
   x.fillStyle = 'rgba(160,190,255,.4)'; for (const r of e.rain) if (r.x > 130 && r.x < 182) x.fillRect(Math.round(r.x), 28 + Math.round(r.y % 40), 1, 2);
   x.fillStyle = 'rgba(150,180,255,.07)'; x.beginPath(); x.moveTo(130, 68); x.lineTo(182, 68); x.lineTo(150, E3_FLOOR + 22); x.lineTo(90, E3_FLOOR + 22); x.fill();
-  // 문 + 308 명패
+  // 문 + 508 명패
   x.fillStyle = '#2a2030'; x.fillRect(16, 42, 34, E3_FLOOR - 42); x.fillStyle = '#3a2e44'; x.fillRect(18, 44, 30, E3_FLOOR - 44); x.fillStyle = '#c8b070'; x.fillRect(42, 78, 3, 2);
-  x.fillStyle = '#d8d0e0'; x.fillRect(24, 50, 18, 8); x.fillStyle = '#1a1420'; x.font = 'bold 7px monospace'; x.textAlign = 'center'; x.fillText('308', 33, 57);
+  x.fillStyle = '#d8d0e0'; x.fillRect(24, 50, 18, 8); x.fillStyle = '#1a1420'; x.font = 'bold 7px monospace'; x.textAlign = 'center'; x.fillText('508', 33, 57);
   // 빈 2층 침대 (매트리스 없음)
   x.fillStyle = '#2c2236'; x.fillRect(62, 46, 2, E3_FLOOR - 46); x.fillRect(110, 46, 2, E3_FLOOR - 46); x.fillRect(62, 62, 50, 2); x.fillRect(62, 96, 50, 2); x.fillRect(62, 46, 50, 1);
   // 바닥 (나무)
@@ -6775,7 +6775,7 @@ function e3TalkUI() {
   e3Bubble(L.slice(0, n), pos.x * 2, pos.y * 2, e.ph === 'talk' && n >= L.length);
   // 이름표 (작게)
   ctx.font = 'bold 7px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = T.sp === 'y' ? '#ff4a9a' : '#5ab8ff';
-  ctx.fillText(T.sp === 'y' ? '308호 김예안' : '308호 김두현', pos.x * 2, E3_FLOOR * 2 + 16);
+  ctx.fillText(T.sp === 'y' ? '508호 김예안' : '508호 김두현', pos.x * 2, E3_FLOOR * 2 + 16);
   if (e.tear) { ctx.fillStyle = '#bfe6ff'; ctx.fillRect(Math.round(e.tear.x), Math.round(e.tear.y), 2, 3); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(e.tear.x), Math.round(e.tear.y), 1, 1); }
 }
 function drawE308() {
@@ -6825,7 +6825,7 @@ function drawE308() {
   if (ph === 'impact' && e.pt >= 30) { const a = Math.min(1, (e.pt - 30) / 12); ctx.globalAlpha = a; text('" 잘 가라, 나의 냄새나던 청춘 (2026) "', GW / 2, 196, 11, '#ffd0d0'); ctx.globalAlpha = 1; }
   if (ph === 'bye') {
     for (const b of e.bye) { const bx = 26 + b.slot * 20, by = 222 - 30 - (50 - b.t) * 0.5; ctx.globalAlpha = Math.min(1, b.t / 12); ctx.font = 'bold 8px "Malgun Gothic", sans-serif'; const w = ctx.measureText(b.text).width + 8; ctx.fillStyle = 'rgba(255,245,230,.92)'; ctx.fillRect(bx - w / 2, by - 9, w, 12); ctx.fillStyle = '#5a2a1a'; ctx.textAlign = 'center'; ctx.fillText(b.text, bx, by); ctx.globalAlpha = 1; }
-    if (e.pt > 150 && e.pt < 240) { ctx.globalAlpha = Math.min(1, (e.pt - 150) / 20) * Math.min(1, (240 - e.pt) / 15); text('308호, 퇴실 완료.', GW / 2, 56, 13, '#fff3e0'); ctx.globalAlpha = 1; }
+    if (e.pt > 150 && e.pt < 240) { ctx.globalAlpha = Math.min(1, (e.pt - 150) / 20) * Math.min(1, (240 - e.pt) / 15); text('508호, 퇴실 완료.', GW / 2, 56, 13, '#fff3e0'); ctx.globalAlpha = 1; }
   }
   if (e.t > 40 && ph !== 'crt') { ctx.globalAlpha = 0.45; text(ph === 'talk' ? 'Z/Enter 다음 · Esc 건너뛰기' : 'Esc 건너뛰기', GW - 70, GH - 12, 8, '#ffffff'); ctx.globalAlpha = 1; }
 }
@@ -8327,17 +8327,17 @@ bossSfx = useNativeRandom(bossSfx); bossMusic = useNativeRandom(bossMusic); boss
   }
   baseU();
   if (bossMode && st0 !== 'e308' && state === 'e308') bossMusicStop();
-  if (bossMode && st0 === 'e308' && state === 'over' && BOSS) { BOSS.hp = 0; BOSS.stats.clutch[0] += 5; bossEnd(true, '308호의 마지막 점호 (즉사 기믹)'); }
+  if (bossMode && st0 === 'e308' && state === 'over' && BOSS) { BOSS.hp = 0; BOSS.stats.clutch[0] += 5; bossEnd(true, '508호의 마지막 점호 (즉사 기믹)'); }
   if (bossMode && BOSS && BOSS.cutT > 0) BOSS.cutT--;
   if (bossMode && c0 && cine !== c0 && c0.caster && !c0.caster.boss && c0.kind !== 'dictator') bossSkillHit(c0); // 스킬 연출 끝 → 보스 피해
   if (bossMode && st0 === 'over' && state === 'title') setBoss(false); // 결과 화면 → 타이틀
 }; }
-function boss308Ready() { const B = BOSS; return !!(B && B.phase === 3 && !(B.orbs && B.orbs.length) && B.hp <= B.hpMax * 0.1 && !B.clearing); } // 308호 즉사 기믹 (김예안+김두현 파티, 페이즈 3 HP 10%)
+function boss308Ready() { const B = BOSS; return !!(B && B.phase === 3 && !(B.orbs && B.orbs.length) && B.hp <= B.hpMax * 0.1 && !B.clearing); } // 508호 즉사 기믹 (김예안+김두현 파티, 페이즈 3 HP 10%)
 
 // =====================================================================
 // ===== 보스전 페이즈 2 · 3 (v7.1) =====
 // 페이즈 2 '학생주임의 폭주': 전뇌 쉴드 → HP 50%에 화염 쉴드, 소지품 검사, 선도부 넷 블록, 소음 측정기 카운터, 벌점 폭탄, 굴절 마구, 체벌 집행
-// 페이즈 3 '멸망의 졸업식': 4색 원소 궤도성(무적) → 4속성 순환 쉴드, 타임루프 환영공, 역사적 재앙 강타, 무회전 굴절 서브, 벌점 100점 즉형 집행, 308호 즉사 기믹
+// 페이즈 3 '멸망의 졸업식': 4색 원소 궤도성(무적) → 4속성 순환 쉴드, 타임루프 환영공, 역사적 재앙 강타, 무회전 굴절 서브, 벌점 100점 즉형 집행, 508호 즉사 기믹
 // =====================================================================
 const BOSS_PHASE = [null,
   { name: '훈화 말씀의 압박', sub: '입문 & 기믹 적응', col: '#ffd23f' },
@@ -8660,7 +8660,7 @@ function drawBossP23Top() { // 선수 앞: 선도부·장막, 원소 구체, 굴
   ctx.globalAlpha = 1;
   if (ball.sonic) for (let i = 0; i < 3; i++) { const r = 24 + ((t * 3 + i * 10) % 30); ctx.strokeStyle = `rgba(120,200,255,${1 - (r - 24) / 30})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ball.x, ball.y, r, 0, 7); ctx.stroke(); }
 }
-function drawBossP23HUD() { // 화면 고정: 캐스팅 바, 압수, 소음계, 즉형 집행, 308호
+function drawBossP23HUD() { // 화면 고정: 캐스팅 바, 압수, 소음계, 즉형 집행, 508호
   const B = BOSS; if (!B) return;
   const now = performance.now(), D = BOSS_DIFF[bossDiff];
   if (B.cast) { const k = Math.min(1, B.cast.t / B.cast.dur), col = CAST_INFO[B.cast.k][1];
@@ -8674,7 +8674,7 @@ function drawBossP23HUD() { // 화면 고정: 캐스팅 바, 압수, 소음계, 
     ctx.fillStyle = `rgba(120,0,20,${0.15 + 0.1 * on})`; ctx.fillRect(0, 53, GW, GH - 53);
     text(`⚖ 벌점 100점 즉형 집행 ${s}초`, GW / 2, 124, 15, on ? '#ff2a6a' : '#ffffff');
     text(B.exec.ext ? '(시간 팽창으로 2배 연장됨)' : '시간 안에 HP 0! 확정 스킬을 퍼부어 · 차명준 시간 팽창 = 타이머 2배', GW / 2, 138, 6.5, '#ffd0d8'); }
-  if (boss308Ready() && is308() && Math.floor(now / 300) % 2) text('🚪 M = 308호의 마지막 점호 (즉사 기믹!)', GW / 2, 152, 10, '#ffd0e0');
+  if (boss308Ready() && is308() && Math.floor(now / 300) % 2) text('🚪 M = 508호의 마지막 점호 (즉사 기믹!)', GW / 2, 152, 10, '#ffd0e0');
 }
 function drawBossPhaseCard() { // 페이즈 전환 연출
   const B = BOSS, t = timer, cur = BOSS_PHASE[B.phase], nx = BOSS_PHASE[B.phase + 1];
@@ -8692,7 +8692,7 @@ function drawBossPhaseCard() { // 페이즈 전환 연출
     ctx.restore();
     if (t > 80) text(nx.sub, GW / 2, 168, 10, nx.col);
     if (t > 92) text(B.phase === 1 ? '⚡전뇌 쉴드 (약점 ✊물리) → 체력 50%에 🔥화염 쉴드 (약점 ⚡전뇌)' : '무적! 4색 원소 구체를 ⚖→⚡→✊→🔥 순서로 부숴', GW / 2, 188, 7.5, '#ffffff');
-    if (t > 100) text(B.phase === 1 ? '소지품 검사 · 선도부 넷 블록 · 소음 측정기 · 벌점 폭탄 · 굴절 마구 · 체벌 집행' : '환영공 · 재앙 강타 · 굴절 서브 · 벌점 100점 즉형 집행 · 308호', GW / 2, 202, 6.5, '#ffd0e0');
+    if (t > 100) text(B.phase === 1 ? '소지품 검사 · 선도부 넷 블록 · 소음 측정기 · 벌점 폭탄 · 굴절 마구 · 체벌 집행' : '환영공 · 재앙 강타 · 굴절 서브 · 벌점 100점 즉형 집행 · 508호', GW / 2, 202, 6.5, '#ffd0e0');
   }
 }
 // ----- BGM 페이즈 2: 하비 메탈 리프 + 다크 베이스 / 페이즈 3: 합창 + 서브 베이스 드롭 -----
@@ -8902,7 +8902,7 @@ function mobileBuildUI() {
   };
   for (const [role, bx, by, r, lab] of MOB_LAYOUT[MOBILE.layout]) mk(role, bx, by, r * 100, lab);
   const back = mk('x', 0.05, 0.07, 4.5, '⏏'); back.style.borderRadius = '30%';
-  const m308 = mk('m', 0.5, 0.12, 5, '308'); m308.style.display = 'none'; MOBILE.m308 = m308;
+  const m308 = mk('m', 0.5, 0.12, 5, '508'); m308.style.display = 'none'; MOBILE.m308 = m308;
   MOBILE.btns = [...d.children].filter((b) => 'lrudas'.includes(b.dataset.role) && b.dataset.role.length === 1 && b.dataset.role !== 'x');
   // 누르기: 방향키는 손가락을 미끄러뜨리면 옆 버튼으로 바뀜
   const held = new Map(); // pointerId → role
