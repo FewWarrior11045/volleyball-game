@@ -2199,6 +2199,10 @@ const YA_SKILLS = [
     lines: ['"벌점 25점 채웠다!!"', '"나 오늘부로 동성고 기숙사 퇴사다 이 빡통들아!!"'] },
   { key: 'scream', title: '광란의 포효: 160dB 순수 샤우팅', en: '160dB Pure Acoustic Scream Drop', col: '255,230,60',
     lines: ['"으아아아아아아아아아아악-!!!!!"', ''] },
+  { key: 'push', title: '신라천정(神羅天征): 공간 붕괴형 척력 폭발', en: 'Almighty Repulsion — Spatial Collapse', col: '170,90,255',
+    lines: ['"고통도, 벌점도, 이 기숙사도... 전부 밀어내 주마."', '"신라천정(神羅天征)-!!"'] },
+  { key: 'pull', title: '만상천인(萬象天引): 칠흑 인력 포획 처형 스파이크', en: 'Universal Pull — Black Gravity Execution', col: '220,30,50',
+    lines: ['"어디로 도망쳐도 소용없다... 인력은 거역 못 해."', '"만상천인(萬象天引)-!!"'] },
 ];
 const YA_TAUNT = {
   start: ['오늘도 점호 걸리면 진짜 기숙사 엎어버린다.', '밤에 몰래 라면이나 처먹는 놈이 자치고라고 단속질이야?!', '오늘 니가 내 기숙사 퇴사원 싸인받는 날이다!'],
@@ -2212,6 +2216,7 @@ const YA_TAUNT = {
 function yaSource(c) { const P = c.caster, s = P.side === 0 ? 1 : -1; return c.sk.key === 'scream' ? { x: NET_X - s * 14, y: P.y - 30 } : { x: P.x + s * 26, y: P.y - 40 }; }
 
 function updateYean() {
+  if (cine.sk.key === 'push' || cine.sk.key === 'pull') { updateYaPP(); return; }
   const c = cine, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, t = ++c.t;
   players.forEach((p) => p.anim++);
   const [mn, mx] = T.side === 0 ? [44, 176] : [256, 388];
@@ -2262,6 +2267,7 @@ function updateYean() {
 }
 
 function yaCam(c) {
+  if (c.sk.key === 'push' || c.sk.key === 'pull') return yaPPCam(c);
   const t = c.t, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, H = CAM_HOME;
   if (!c.init) return H;
   const face = { x: P.x, y: P_GROUND_Y - 90 + 14 }, close = { x: face.x, y: face.y, z: 3.6, r: 0 };
@@ -2287,6 +2293,7 @@ function drawRamen(x, y, sc, rot, a) {
 function drawYeanWorld() {
   const c = cine, t = c.t, P = c.caster, T = c.target, sk = c.sk, s = P.side === 0 ? 1 : -1, key = sk.key;
   if (!c.init) return;
+  if (key === 'push' || key === 'pull') { drawYaPPWorld(); return; }
   const k = t > YA_END - 8 ? (YA_END - t) / 8 : Math.min(1, t / 8), a1 = Math.min(1, Math.max(0, (t - 6) / 18)), src = yaSource(c);
   if (key === 'rage') {
     const g = ctx.createRadialGradient(P.x, P.y - 20, 10, P.x, P.y - 20, 340); g.addColorStop(0, `rgba(120,0,0,${0.75 * k})`); g.addColorStop(1, `rgba(20,0,0,${0.92 * k})`);
@@ -2353,6 +2360,7 @@ function drawYeanUI(c) {
     if (t % 6 < 3) glitch(16);
   }
   if (key === 'evict' && c.stamp && t < c.stamp + 4) { ctx.fillStyle = `rgba(255,255,255,${0.8 - (t - c.stamp) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
+  if (key === 'push' || key === 'pull') drawYaPPUI(c);
   ctx.save(); ctx.globalAlpha = Math.max(0, k);
   text(sk.title, GW / 2, 22, 12, dark ? '#b00d33' : `rgb(${sk.col})`); text(sk.en, GW / 2, 34, 8, dark ? '#333' : '#fff');
   if (t >= YA_C - 4 && t < YA_FIRE + 20) sk.lines.forEach((ln, i) => {
@@ -2360,9 +2368,171 @@ function drawYeanUI(c) {
     const st = YA_C - 4 + i * 12, n = Math.max(0, Math.min(ln.length, Math.floor((t - st) * 1.6))); if (n <= 0) return;
     const y = 262 + i * 17, big = key === 'scream'; ctx.font = `bold ${big ? 14 : i ? 10 : 11}px "Malgun Gothic", sans-serif`;
     const w = ctx.measureText(ln).width + 16; ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(GW / 2 - w / 2, y - 13, w, big ? 20 : 16);
+    if (key === 'push' || key === 'pull') for (let e = 1; e <= 2; e++) { ctx.save(); ctx.globalAlpha *= 0.28 / e; text(ln.slice(0, n), GW / 2 + e * 2.5, y + e * 2, i ? 10 : 11, `rgb(${sk.col})`); ctx.restore(); } // 멀티 에코
     text(ln.slice(0, n), GW / 2, y + (big ? 2 : 0), big ? 14 : i ? 10 : 11, i ? '#ffffff' : `rgb(${sk.col})`);
   });
   ctx.restore();
+}
+
+// ----- 김예안 신규 스킬 (v7.4): 신라천정(척력) / 만상천인(인력) — 6초 틀(YA_*) 그대로 -----
+function yaPPSrc(c) { const P = c.caster, s = P.side === 0 ? 1 : -1; return c.sk.key === 'push' ? { x: P.x + s * 22, y: P.y + 4 } : { x: P.x, y: P.y - 66 }; }
+function yaHead(T) { return { x: T.x, y: T.y - CHARACTERS[T.char].h * 0.3 }; } // 상대 머리 위치
+const YA_PP = { pushN: 18, pushF: 4, pullN: 15, pullF: 8 }; // 밸런스: 공 속도 N(작을수록 빠름) / 상대 멈칫 프레임
+function yaHash(i) { const v = Math.sin(i * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); } // 그리기용 고정 랜덤 (게임 상태 안 건드림)
+function updateYaPP() {
+  const c = cine, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, t = ++c.t;
+  players.forEach((p) => p.anim++);
+  const [mn, mx] = T.side === 0 ? [44, 176] : [256, 388];
+  const wall = T.side === 0 ? mn : mx, front = T.side === 0 ? mx : mn; // 상대 코트 맨 뒤 벽 / 네트 쪽
+  if (!c.init) { c.init = true; c.parts = []; c.x0 = P.x; c.y0 = P.y; c.tx0 = T.x; }
+  P.state = JUMP; P.vy = 0;
+  if (k === 'push') {
+    const hx = NET_X - s * 34, hy = 112;
+    if (t <= 25) { const q = t / 25, e = 1 - (1 - q) * (1 - q); P.x = c.x0 + (hx - c.x0) * e; P.y = c.y0 + (hy - c.y0) * e; }
+    else if (t < YA_C) { P.x = hx; P.y = hy + Math.sin(t * 0.12) * 2; }
+    else { P.x = hx; P.y = Math.min(hy + 10, P.y + 3); } // 양손 내리치며 살짝 내려옴
+    if (t === 1) { if (bossMode) bossSfx('duck'); }
+    if (t === 8) { sfx('thud', 0.8); c.neg = t; }
+    if (t === YA_A) sfx('whoosh');
+    if (t >= YA_A && t < YA_C) {
+      if (t % 2 === 0) c.parts.push({ kind: 'tile', x: 110 + Math.random() * 212, y: 262 + Math.random() * 8, vx: 0, vy: -0.35 - Math.random() * 0.6, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.08, t: 999, sz: 3 + Math.random() * 4, col: Math.random() < 0.5 ? '#e8cf8a' : Math.random() < 0.5 ? '#c9a95e' : '#5aa04a' });
+      if (t % 9 === 0) c.parts.push({ kind: 'ring', x: P.x, y: P.y - 10, r: 6, t: 32 });
+    }
+    if (t === YA_C - 22) sfx('charge');
+    if (t === YA_C) { c.boom = t; sfx('explode'); sfx('thud'); shake = 22; hitStop = 4; heavy(P.x, P.y, 2.8);
+      for (const q of c.parts) if (q.kind === 'tile') { q.vx = s * (7 + Math.random() * 7); q.vy = (Math.random() - 0.6) * 4; q.vr = s * 0.4; q.t = 30; }
+      for (let i = 0; i < 30; i++) c.parts.push({ kind: 'shard', x: P.x, y: P.y, vx: s * (4 + Math.random() * 10), vy: (Math.random() - 0.5) * 9, t: 34, rot: Math.random() * 6 }); }
+    if (t > YA_C && t < YA_FIRE) { T.x += (wall - T.x) * 0.35; if (t % 3 === 0) shake = Math.max(shake, 10); }
+  } else { // pull
+    const hx = NET_X - s * 28;
+    if (t <= 18) { const q = t / 18, e = 1 - (1 - q) * (1 - q); P.x = c.x0 + (hx - c.x0) * e; P.y = c.y0 + (P_GROUND_Y - c.y0) * e; } // 네트 앞으로 슬라이딩
+    else if (t < YA_C) { P.x = hx; P.y = P_GROUND_Y; }
+    else { const q = Math.min(1, (t - YA_C) / 14), e = 1 - (1 - q) * (1 - q); P.x = hx; P.y = P_GROUND_Y - e * 120; } // 무중력 도약
+    if (t === 1) sfx('whoosh');
+    if (t === 18) { sfx('suck'); c.core = t; }
+    if (t > 18 && t < YA_B && t % 4 === 0) c.parts.push({ kind: 'in', a: Math.random() * 6.28, r: 120 + Math.random() * 60, t: 40 });
+    if (t >= YA_A + 8 && t <= YA_B) { const q = (t - (YA_A + 8)) / (YA_B - YA_A - 8); T.x = c.tx0 + (NET_X + s * 40 - c.tx0) * (q * q); if (t % 4 === 0) shake = Math.max(shake, 4); } // 사슬로 강제 당김
+    if (t === YA_A + 8) sfx('charge');
+    if (t === YA_B) { c.lock = t; hitStop = 10; sfx('thud'); shake = 12; } // 0.4초 초대형 히트스톱 + 머리 락온
+    if (t === YA_FIRE - 16) sfx('charge');
+  }
+  for (const q of c.parts) {
+    q.t--;
+    if (q.kind === 'tile') { q.x += q.vx; q.y += q.vy; q.rot += q.vr; if (q.vx) q.vy += 0.15; }
+    if (q.kind === 'shard') { q.x += q.vx; q.y += q.vy; q.vx *= 0.96; q.rot += 0.3; }
+    if (q.kind === 'ring') q.r += 6;
+    if (q.kind === 'in') q.r = Math.max(4, q.r * 0.9);
+  }
+  c.parts = c.parts.filter((q) => q.t > 0 && q.x > -200 && q.x < 640);
+  // 공 위치
+  const src = yaPPSrc(c);
+  if (k === 'pull' && t < YA_B) { const q = Math.max(0, Math.min(1, (t - (YA_A + 20)) / (YA_B - YA_A - 20))); if (q > 0) { ball.x += (src.x - ball.x) * q; ball.y += (src.y - ball.y) * q; } ball.vx = 0; ball.vy = 0; ball.rot += 0.5; }
+  else if (t < YA_FIRE) { ball.x = src.x; ball.y = src.y; ball.vx = 0; ball.vy = 0; ball.rot += 0.3; }
+  if (t === YA_FIRE - 1) { hitStop = 5; }
+  if (t === YA_FIRE) {
+    sfx('flight', 1, 0.8); ball.x = src.x; ball.y = src.y; P.state = JUMP; P.vy = 0;
+    if (k === 'push') { // 척력: 상대 벽에 박힘 + 방어막 초토화 + 공은 네트 앞으로
+      heavy(wall, T.y - 20, 2.6); T.x = wall; T.freezeT = Math.max(T.freezeT || 0, YA_PP.pushF);
+      for (const f of ['guardT', 'blockT', 'fwT']) T[f] = 0; T.matrixGuard = false; T.courtGuard = false;
+      if (!bossMode) { fakes.length = 0; strikes.length = 0; }
+      ball.x = NET_X + s * 34; ball.y = 118; // 척력에 밀려 네트를 넘어간 자리에서 출발 (내 몸에 다시 안 맞게)
+      releaseBall(front + s * 26, YA_PP.pushN);
+      popups.push({ text: '神羅天征! 상대 벽 꽂힘 + 방어막 초토화', x: GW / 2, y: 168, t: 60, color: '#c89bff' });
+    } else { // 인력: 머리 처형 스파이크 + 버프 해제 + 인력 붕괴
+      heavy(T.x, yaHead(T).y, 2.8); sfx('explode'); T.freezeT = Math.max(T.freezeT || 0, YA_PP.pullF);
+      for (const f of ['fastT', 'jumpT', 'ampT', 'whirlT', 'sightT']) T[f] = 0;
+      T.weakT = Math.max(T.weakT || 0, 125); P.ampT = Math.max(P.ampT || 0, 125);
+      ball.x = NET_X + s * 30; ball.y = 96; // 머리에 맞고 튕긴 공 (내 몸에 다시 안 맞게 상대 코트 위에서 출발)
+      releaseBall(Math.max(mn, Math.min(mx, T.x + s * 64)), YA_PP.pullN);
+      popups.push({ text: '萬象天引! 상대 버프 해제 + 5초 스파이크 약화 · 나 5초 증폭', x: GW / 2, y: 168, t: 60, color: '#ff6a6a' });
+    }
+    cine = null;
+  }
+}
+function yaPPCam(c) {
+  const t = c.t, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, H = CAM_HOME;
+  if (!c.init) return H;
+  let keys;
+  if (c.sk.key === 'push') keys = [[0, H], [8, { x: P.x, y: P.y - 18, z: 3.4, r: 0 }], [22, { x: P.x, y: P.y - 16, z: 3.6, r: 0 }], [YA_A + 12, { x: NET_X, y: 180, z: 1.3, r: 0 }], [YA_B + 10, { x: NET_X - s * 10, y: 170, z: 1.5, r: -s * 0.03 }],
+    [YA_C - 8, { x: P.x, y: P.y, z: 2.4, r: s * 0.04 }], [YA_C + 2, { x: NET_X + s * 50, y: 160, z: 1.05, r: 0 }], [YA_FIRE, { x: NET_X + s * 60, y: 160, z: 1.15, r: 0 }]];
+  else keys = [[0, H], [18, { x: P.x + s * 30, y: 210, z: 2.2, r: 0 }], [YA_A + 8, { x: (P.x + T.x) / 2, y: 200, z: 1.4, r: 0 }], [YA_B, { x: NET_X + s * 20, y: 200, z: 2.0, r: 0 }],
+    [YA_B + 6, { x: T.x, y: T.y - 30, z: 3.6, r: s * 0.04 }], [YA_C, { x: T.x, y: T.y - 30, z: 3.8, r: s * 0.04 }], [YA_C + 12, { x: NET_X, y: 190, z: 1.6, r: 0 }], [YA_FIRE, { x: NET_X + s * 24, y: 196, z: 1.9, r: 0 }]];
+  keys.push([YA_FIRE + 1, H], [YA_END, H]);
+  return camKeys(t, keys);
+}
+function drawYaPPWorld() {
+  const c = cine, t = c.t, P = c.caster, T = c.target, sk = c.sk, s = P.side === 0 ? 1 : -1, key = sk.key;
+  const k = Math.min(1, t / 8), src = yaPPSrc(c), ch = CHARACTERS[P.char], eye = { x: P.x + s * 6, y: P.y - ch.h * 0.55 };
+  if (key === 'push') {
+    const g = ctx.createRadialGradient(P.x, P.y, 10, P.x, P.y, 360); g.addColorStop(0, `rgba(70,20,120,${0.75 * k})`); g.addColorStop(1, `rgba(8,0,20,${0.93 * k})`);
+    ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
+    // 중력 파동 링
+    for (const q of c.parts) if (q.kind === 'ring') { ctx.strokeStyle = `rgba(190,130,255,${q.t / 40})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(q.x, q.y, q.r, q.r * 0.8, 0, 0, 7); ctx.stroke(); }
+    // 떠오르는 코트 타일 조각
+    for (const q of c.parts) if (q.kind === 'tile') { ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.rot); ctx.globalAlpha = Math.min(1, q.t / 10); ctx.fillStyle = q.col; ctx.fillRect(-q.sz / 2, -q.sz / 2, q.sz, q.sz); ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 0.6; ctx.strokeRect(-q.sz / 2, -q.sz / 2, q.sz, q.sz); ctx.restore(); }
+    if (c.boom) { // 백색 광륜 구체 + 척력 쓸림선
+      const q = (t - c.boom) / (YA_FIRE - c.boom), r = 20 + q * 420;
+      const cg = ctx.createRadialGradient(P.x, P.y, 0, P.x, P.y, r); cg.addColorStop(0, `rgba(255,255,255,${0.9 * (1 - q)})`); cg.addColorStop(0.6, `rgba(220,190,255,${0.5 * (1 - q)})`); cg.addColorStop(1, 'rgba(160,80,255,0)');
+      ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(P.x, P.y, r, 0, 7); ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 * (1 - q)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(P.x, P.y, r * 0.7, 0, 7); ctx.stroke();
+      for (let i = 0; i < 18; i++) { const y = 40 + yaHash(i) * 230, x0 = P.x + s * ((t * 18 + yaHash(i + 50) * 300) % 360); ctx.strokeStyle = `rgba(230,210,255,${0.6 * (1 - q)})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + s * 40, y); ctx.stroke(); }
+      ctx.save(); ctx.globalAlpha = 1 - q; floorText('神羅天征', NET_X + s * 80, 276, 34, '#e6d2ff'); ctx.restore();
+    }
+    for (const q of c.parts) if (q.kind === 'shard') { ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.rot); ctx.globalAlpha = q.t / 34; ctx.fillStyle = '#fff'; ctx.fillRect(-3, -1, 6, 2); ctx.restore(); }
+  } else {
+    const g = ctx.createRadialGradient(src.x, P.y - 30, 10, src.x, P.y - 30, 360); g.addColorStop(0, `rgba(90,0,10,${0.75 * k})`); g.addColorStop(1, `rgba(5,0,0,${0.94 * k})`);
+    ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
+    const core = { x: P.x + s * 22, y: P.y - 30 };
+    if (c.core && t < YA_C + 6) {
+      const q = Math.min(1, (t - c.core) / 12), R = 4 + q * 9;
+      for (let i = 0; i < 6; i++) { const rr = ((t * 2.5 + i * 22) % 130); ctx.strokeStyle = `rgba(200,20,40,${0.5 * (rr / 130)})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(core.x, core.y, 130 - rr, (130 - rr) * 0.7, t * 0.02, 0, 7); ctx.stroke(); } // 렌즈 왜곡 (빨려 드는 원)
+      for (const p of c.parts) if (p.kind === 'in') { ctx.strokeStyle = `rgba(255,80,90,${Math.min(1, p.t / 20)})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(core.x + Math.cos(p.a) * p.r, core.y + Math.sin(p.a) * p.r); ctx.lineTo(core.x + Math.cos(p.a) * (p.r + 14), core.y + Math.sin(p.a) * (p.r + 14)); ctx.stroke(); }
+      ctx.save(); ctx.translate(core.x, core.y); ctx.rotate(t * 0.2); ctx.strokeStyle = 'rgba(255,40,60,.9)'; ctx.lineWidth = 2; ctx.shadowColor = '#ff1030'; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.ellipse(0, 0, R * 2.2, R * 0.7, 0, 0, 7); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(core.x, core.y, R, 0, 7); ctx.fill(); ctx.strokeStyle = '#ff2040'; ctx.lineWidth = 1.5; ctx.stroke();
+      if (t >= YA_A && t < YA_FIRE) { // 암적색 중력 사슬
+        const tx = T.x, ty = T.y - 24, n = 14;
+        for (let i = 0; i <= n; i++) { const u = i / n, x = core.x + (tx - core.x) * u, y = core.y + (ty - core.y) * u + Math.sin(u * 9 + t * 0.4) * 2; ctx.save(); ctx.translate(x, y); ctx.rotate(Math.atan2(ty - core.y, tx - core.x) + (i % 2 ? 0 : 1.57));
+          ctx.strokeStyle = '#a0101c'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 0, 4, 2, 0, 0, 7); ctx.stroke(); ctx.restore(); }
+      }
+    }
+    if (c.lock) { // 머리 락온 조준점
+      const q = Math.min(1, (t - c.lock) / 6), { x: hx, y: hy } = yaHead(T);
+      ctx.save(); ctx.translate(hx, hy); ctx.rotate(t * 0.08); ctx.strokeStyle = `rgba(255,30,40,${q})`; ctx.lineWidth = 2; ctx.shadowColor = '#ff0020'; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(0, 0, 20 - q * 6, 0, 7); ctx.stroke(); for (let i = 0; i < 4; i++) { ctx.rotate(1.57); ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(22, 0); ctx.stroke(); } ctx.restore();
+      if (t < YA_FIRE) text('HEAD LOCK-ON', hx, hy - 26, 8, '#ff4050');
+    }
+    if (t >= YA_FIRE - 10) { // 붉은 레이저 궤적
+      const { x: hx, y: hy } = yaHead(T); ctx.save(); ctx.strokeStyle = 'rgba(255,40,60,.9)'; ctx.lineWidth = 3 + Math.sin(t) * 1.5; ctx.shadowColor = '#ff0020'; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(hx, hy); ctx.stroke(); ctx.restore(); }
+    if (t >= YA_B) { ctx.save(); ctx.globalAlpha = Math.min(1, (t - YA_B) / 8); floorText('萬象天引', NET_X - s * 70, 276, 34, '#ff5060'); ctx.restore(); }
+  }
+  if (t > YA_FIRE - 22 && t < YA_FIRE) chargeFX(src.x, src.y, (t - (YA_FIRE - 22)) / 22, sk.col);
+  const gl = ctx.createRadialGradient(P.x, P.y - 14, 4, P.x, P.y - 14, 60); gl.addColorStop(0, `rgba(${sk.col},.5)`); gl.addColorStop(1, `rgba(${sk.col},0)`);
+  ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(P.x, P.y - 14, 60, 0, 7); ctx.fill();
+  drawPlayer(P);
+  if (key === 'push' && t >= 6 && t < YA_C + 10) { // 보라색 눈 번뜩임 궤적
+    const q = Math.min(1, (t - 6) / 4); ctx.save(); ctx.shadowColor = '#b060ff'; ctx.shadowBlur = 10; ctx.strokeStyle = `rgba(200,140,255,${q})`; ctx.lineWidth = 1.6;
+    for (const dx of [-5, 5]) { ctx.beginPath(); ctx.moveTo(eye.x + dx, eye.y); ctx.lineTo(eye.x + dx - s * (8 + Math.sin(t * 0.3) * 4), eye.y - 1); ctx.stroke(); ctx.fillStyle = '#e0c0ff'; ctx.beginPath(); ctx.arc(eye.x + dx, eye.y, 1.6, 0, 7); ctx.fill(); }
+    ctx.restore();
+  }
+  ctx.save(); if ((key === 'push' && c.boom) || (key === 'pull' && c.lock && t < YA_C)) ctx.translate(Math.sin(t * 2.3) * 1.5, 0); drawPlayer(T); ctx.restore();
+  if (key === 'pull' ? t >= YA_A - 5 : !!c.boom) drawBall();
+}
+function drawYaPPUI(c) {
+  const t = c.t, key = c.sk.key;
+  if (key === 'push') {
+    if (c.neg && t >= c.neg && t < YA_A) { // 흑백 네거티브 반전 + 도트 픽셀
+      ctx.save(); ctx.globalCompositeOperation = 'saturation'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, GW, GH);
+      ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, GW, GH); ctx.restore();
+      const q = 1 - (t - c.neg) / (YA_A - c.neg), px = 8;
+      for (let y = 0; y < GH; y += px) for (let x = 0; x < GW; x += px) { const h = yaHash(x * 7 + y * 13 + t); if (h < 0.25 * q) { ctx.fillStyle = h < 0.12 * q ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.35)'; ctx.fillRect(x, y, px, px); } }
+    }
+    if (c.boom && t < c.boom + 4) { ctx.fillStyle = `rgba(255,255,255,${0.9 - (t - c.boom) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
+  } else {
+    if (c.lock && t < c.lock + 14) { ctx.fillStyle = `rgba(255,0,20,${0.35 - (t - c.lock) * 0.025})`; ctx.fillRect(0, 0, GW, GH); }
+    if (c.lock && t >= c.lock && t < YA_C) { ctx.save(); ctx.globalAlpha = 0.85; text('[ HITSTOP · TARGET HEAD ]', GW / 2, 60, 10, '#ff4050'); ctx.restore(); }
+  }
 }
 
 // ===== 김우현 (MYTHIC): 135cm 방송부 부장 — 4초 "한번 더!" 더블 하이파이브 3종 =====
@@ -6563,7 +6733,7 @@ function drawE308() {
 //       키 입력은 NET_DELAY 프레임 뒤에 적용 (0.12초) → 인터넷이 조금 느려도 끊기지 않게.
 // 방장 = 왼쪽(파랑), 참가자 = 오른쪽(빨강). 각자 DRGF+Z+Shift 또는 방향키+Enter+; 아무거나 써도 됨.
 // =====================================================================
-const NET_VERSION = 'v7.2-' + NCHAR;
+const NET_VERSION = 'v7.4-' + NCHAR;
 const NET_PREFIX = 'dsvb26-';      // PeerJS 방 이름 앞에 붙는 글자 (방 코드 4자리랑 합쳐짐)
 const NET_DELAY = 3;               // 키 입력 지연 (프레임) — 3 = 0.12초
 // 중계(TURN) 서버 (v7.2.1): 학교 와이파이처럼 직접 연결이 막힌 곳에서 이 서버를 거쳐 우회함.
@@ -7112,7 +7282,7 @@ const SKILL_ELEM = {
   'history:ship': 'pyro', 'history:arrow': 'phys', 'history:thunder': 'cyber', 'history:hangul': 'order', 'history:gyebaek': 'phys',
   'math:rail': 'cyber', 'math:blade': 'phys', 'math:wave': 'order', 'math:fractal': 'cyber', 'math:euler': 'order',
   'kim:vote': 'order', 'kim:liberty': 'cyber', 'kim:court': 'order', 'kim:grammar': 'phys', 'kim:lincoln': 'pyro',
-  'yean:rage': 'pyro', 'yean:evict': 'order', 'yean:scream': 'phys',
+  'yean:rage': 'pyro', 'yean:evict': 'order', 'yean:scream': 'phys', 'yean:push': 'order', 'yean:pull': 'cyber',
   'rina:math': 'cyber', 'rina:kor': 'order', 'rina:eng': 'phys', 'rina:sci': 'pyro', 'rina:soc': 'order',
   'jmw:meteor': 'pyro', 'jmw:pinball': 'phys', 'jmw:sonic': 'cyber', 'gm:flash': 'pyro', 'gm:grade3': 'order', 'gm:feint': 'phys',
   'jjh:chivalry': 'phys', 'jjh:letter': 'pyro', 'jjh:block': 'cyber', 'wh:broadcast': 'cyber', 'wh:evict': 'order', 'wh:clap': 'phys',
@@ -7439,6 +7609,7 @@ function bossApplyFx(by, landed) { // 보낸 공이 보스(또는 보스 코트)
   const top = hitTop(b), head = !landed && by < top + (b.y + 32 - top) * 0.3;
   let dmg = D.dmg * f.judge * f.combo * rallyMult(B.rallyCnt) * (head ? 1.5 : 1);
   const o = { elem: f.elem, src: f.i, y: by };
+  if (B.pullT > 0) { dmg *= 1.5; o.pure = true; B.pullT = 0; bossPop('인력 붕괴 적중! x1.5', '#ff6a6a', 96, 24); }
   if (head) { B.brk -= 4; popups.push({ text: '👑 HEAD!', x: b.x, y: top - 6, t: 20, color: '#ffd23f' }); if (B.gaze && B.gaze.ph === 'count') { B.gaze.t -= B.gaze.dur * 0.25; bossPop('머리 적중! 캐스팅 25% 차감', '#ffd23f', 130, 30); }
     if (B.cast) { B.cast.t = Math.max(0, B.cast.t - B.cast.dur * 0.25); bossPop('머리 적중! 캐스팅 25% 차감', '#ffd23f', 130, 30); } }
   if (f.fusion === 'plasma') { if (B.sh > 0 && (B.shElem === 'cyber' || B.shElem === 'pyro')) o.shMul = 2; b.freezeT = Math.max(b.freezeT || 0, 50); B.brk -= 8; bossPop('[플라즈마 과부하] 마비 2초!', '#b65aff', 76, 46); }
@@ -7499,6 +7670,7 @@ function bossTick() {
   // 쉴드 재생
   if (B.sh <= 0 && B.groggyT === 0 && B.shRegenT > 0 && --B.shRegenT === 0) { B.sh = B.shMax * 0.5; bossPop(`${ELEM[B.shElem].ic} ${ELEM[B.shElem].name} 쉴드 재생 (50%)`, ELEM[B.shElem].col, 120, 40); }
   // 화염 지대 (성화 징벌): 1초마다 최대 HP 0.8%
+  if (B.pullT > 0) B.pullT--;
   if (B.fire > 0) { B.fire--; if (B.fire % 25 === 0) bossDamage(B.hpMax * 0.006, { tru: true, quiet: true, fixed: true }); }
   // 공이 네트를 넘어간 순간 = 랠리
   const side = ball.x < NET_X ? 0 : 1;
@@ -7605,6 +7777,7 @@ function bossSkillHit(c) { // 스킬 연출이 끝남 → 보스 피해
   if (!BOSS || B.clearing || state === 'over') return;
   if (B.orbs && B.orbs.length) { bossOrbHit(elem, i, true); return; } // 무적 중엔 스킬이 구체 하나를 부숨
   if (BOSS_TRUE.includes(key)) { bossDamage(B.hpMax * 0.08, { tru: true, src: i, fixed: true }); bossPop('확정 스킬! 쉴드 무시 고정 피해', '#ff5aa0', 92, 44); B.stats.clutch[i] += 2; }
+  else if (key === 'yean:pull') { bossDamage(D.dmg * 6, { elem, src: i, ignore: true }); B.brk -= 14; popups.push({ text: '👑 HEAD! 처형 스파이크', x: players[1].x, y: hitTop(players[1]) - 6, t: 30, color: '#ff5060' }); } // 머리 강제 판정 150% (쉴드 무시)
   else { bossDamage(D.dmg * 4, { elem, src: i }); B.brk -= 10; }
   if (key === 'jjh:chivalry' && B.desks.length) { B.desks.forEach((d) => { d.life = 0; d.smash = true; }); bossDamage(D.dmg * 2, { elem: 'phys', src: i, quiet: true }); bossPop('책상 완파! 파편이 보스에게', '#ff8a6a', 120, 40); B.stats.clutch[i]++; }
   if ((key === 'cmj:time' || key === 'gm:flash') && B.gaze) B.stats.clutch[i]++;
@@ -8254,6 +8427,8 @@ function bossAutoPick(c) {
     [B.mobs.length > 0, 'math', 'rail', '미적분 레일건 → 선도부·장막 관통'], [B.mobs.length > 0, 'wh', 'clap', '더블 클랩 → 방어막 무시'], [B.mobs.length > 0, 'jmw', 'meteor', '운석 강타 → 잡몹 일괄 제거'],
     [B.zones.length > 0, 'wh', 'clap', '더블 클랩 → 연소 지대 관통'],
     [!!(B.bendArmed || ball.bend), 'math', 'blade', '행렬 대검 → 굴절 마구 방어'],
+    [B.desks.length > 0 || B.mobs.length > 0 || B.bombs.length > 0 || fakesOn, 'yean', 'push', '신라천정 → 장해물·잡몹·투사체 전부 반사'],
+    [!!(B.cast || B.gaze || B.rageArmed), 'yean', 'pull', '만상천인 → 캐스팅 즉시 취소'],
   ];
   for (const [on, kind, key, msg] of rules) {
     if (!on || c.kind !== kind) continue;
@@ -8292,6 +8467,21 @@ function bossSkillCounter(c, key, elem, i) {
   if (key === 'history:gyebaek') { bossParty().forEach((p) => (p.guardT = Math.max(p.guardT || 0, 150))); if (B.cast && B.cast.k === 'disaster') { B.cast = null; B.spots = []; clutch(2); } bossPop('결사 방어막! 파티 전체 6초 보호', '#ff8a3a', 116, 40); }
   if (B.exec && key === 'cmj:time' && !B.exec.ext) { B.exec.ext = true; B.exec.t += B.exec.max; bossPop('시간 팽창! 즉형 집행 타이머 2배', '#3cf0ff', 104, 50); clutch(2); }
   if (BOSS_TRUE.includes(key) && B.cast) { bossPop(`${B.cast.name} 강제 취소!`, '#7dff9a', 116, 36); B.cast = null; B.spots = []; clutch(); }
+  if (key === 'yean:push') { // 신라천정: 전 필드 반사 + 벽 꽂힘 스턴 + 쉴드 250%
+    const nf = fakes.filter((f) => f.boss).length, n = B.desks.length + B.mobs.length + B.bombs.length + nf;
+    B.desks.forEach((d) => { d.life = 0; d.smash = true; }); B.mobs = []; B.bombs = []; B.illuArmed = false;
+    for (let q = fakes.length - 1; q >= 0; q--) if (fakes[q].boss) fakes.splice(q, 1);
+    if (n) { bossDamage(D.dmg * 1.5 * n, { elem: 'phys', src: i, quiet: true }); bossPop(`신라천정! ${n}개 반사 → 보스에게 꽂힘`, '#c89bff', 104, 44); clutch(); B.rallyG += 15; }
+    const b = players[1]; b.freezeT = Math.max(b.freezeT || 0, 100); if (B.groggyT > 0) B.groggyT += 50;
+    if (B.sh > 0) bossDamage(D.dmg * 10, { elem, src: i, pure: true });
+    bossPop('벽 꽂힘! 보스 4초 행동 불능', '#c89bff', 116, 40);
+  }
+  if (key === 'yean:pull') { // 만상천인: 캐스팅 즉시 취소 + 인력 붕괴
+    const had = B.cast || B.gaze || B.rageArmed;
+    if (B.cast) { B.cast = null; B.spots = []; } if (B.gaze) { B.gaze = null; B.gazeNext = D.gaze; } B.rageArmed = false;
+    if (had) { bossPop('[PATTERN CANCELLED]', '#ff3040', 92, 50); clutch(2); B.rallyG += 15; }
+    B.pullT = 125; bossPop('인력 붕괴! 5초 안 다음 스파이크 1.5배 · 속성 방어 무시', '#ff6a6a', 120, 36);
+  }
 }
 
 // ----- 페이즈 2·3 그리기 -----
