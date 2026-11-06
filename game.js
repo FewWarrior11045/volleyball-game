@@ -43,13 +43,15 @@ const CHARACTERS = [
     skillName: '국영수사과 만점', desc: ['과목별 4초 시네마틱 5종!', '패시브: 상대 스파이크 25% 오답 처리'] },
   { name: '김우현', gender: 'm', grade: 'MYTHIC', type: 'sprite', img: 'assets/woohyun.png', w: 34, h: 46, skill: 'wh',
     skillName: '한번 더! 더블 하이파이브', desc: ['랜덤 4초 시네마틱 4종! (키 135cm)', '생방송 딜레이·벌점 봉인·증폭·선 긋기'] },
+  { name: '이준혁', gender: 'm', grade: 'MYSTIC', type: 'sprite', img: 'assets/ljh.png', w: 62, h: 55, skill: 'ljh',
+    skillName: '도구리의 왕', desc: ['랜덤 시네마틱 3종! (트름·꺼드럭·트랙터)', '음파 밀쳐내기·1등급 열등감·트랙터 10대'] },
 ];
 const NCHAR = CHARACTERS.length; // 고를 수 있는 캐릭터 수 (보스전 보스는 이 뒤에 붙음)
 // 등급 색깔
 const GRADE_COLOR = { POOP: '#9a6233', COMMON: '#3ccf5a', RARE: '#3d8bff', EPIC: '#a64dff', MYTHIC: '#ff3b3b', LEGENDARY: '#ffd23f', MYSTIC: '#d35bff', ULTRA: '#00ffd0' };
 
 // 스킬 시간 (25프레임 = 1초)
-const SKILL_FRAMES = { giant: 125, whirl: 250, hairbeam: 125, democracy: 8, meteor: 8, party: 225, history: 8, sock: 8, math: 8, kim: 8, gm: 8, jmw: 8, jjh: 8, cmj: 8, yean: 8, rina: 8, wh: 8 };
+const SKILL_FRAMES = { giant: 125, whirl: 250, hairbeam: 125, democracy: 8, meteor: 8, party: 225, history: 8, sock: 8, math: 8, kim: 8, gm: 8, jmw: 8, jjh: 8, cmj: 8, yean: 8, rina: 8, wh: 8, ljh: 8 };
 const SOCK_REF = 26, SOCK_CARD = 42, SOCK_SPRAY = 54, SOCK_MINUS = 74, SOCK_END = 92; // 숙성 양말 서브: 심판 등장 / 레드카드 / 소독 / -1점 / 끝
 const PARTY_INTRO = 62; // 파티 시작 연출 (2.5초, 경기 멈춤)
 let party = null;       // { side, girls, cd } 파티 중인 쪽
@@ -336,10 +338,11 @@ function resetRound(server) {
   for (const p of players) {
     Object.assign(p, { y: P_GROUND_Y, vy: 0, state: NORMAL, powerT: 0, lyingT: 0, collided: false });
     // 탈모빔은 라운드 끝나면 사라짐 (시간 상관없이)
-    p.shrinkT = 0; p.shrinkK = 0; // (선 긋기 lineT는 점수가 나도 7초 동안 유지 → newGame에서만 0) p.confRev = false; p.frozen = false; p.forceBump = false; p.redT = 0; p.flat = false; p.guardT = 0; p.stunned = false; p.blindT = 0; p.confuseT = 0; p.freezeT = 0; p.flatT = 0; p.fastT = 0; p.weakT = 0; p.nojumpT = 0; p.pullT = 0; p.sightT = 0; p.slowT = 0; p.ampT = 0; p.lagT = 0; p.lagQ = []; p.matrixGuard = false; p.courtGuard = false; p.jumpT = 0; p.manaLockT = 0; p.whirlT = 0; p.blockT = 0; p.silenceT = 0; p.vflipT = 0; p.fwT = 0; p.slowK = 0;
+    p.lineT = 0; p.weakTag = null; p.shrinkT = 0; p.shrinkK = 0; p.confRev = false; p.frozen = false; p.forceBump = false; p.redT = 0; p.flat = false; p.guardT = 0; p.stunned = false; p.blindT = 0; p.confuseT = 0; p.freezeT = 0; p.flatT = 0; p.fastT = 0; p.weakT = 0; p.nojumpT = 0; p.pullT = 0; p.sightT = 0; p.slowT = 0; p.ampT = 0; p.lagT = 0; p.lagQ = []; p.matrixGuard = false; p.courtGuard = false; p.jumpT = 0; p.manaLockT = 0; p.whirlT = 0; p.blockT = 0; p.silenceT = 0; p.vflipT = 0; p.fwT = 0; p.slowK = 0;
     if (CHARACTERS[p.char].skill === 'hairbeam') p.skillT = 0;
     if (CHARACTERS[p.char].skill === 'democracy') p.skillT = 0; // 민주주의도 라운드 끝나면 해제
   }
+  if (typeof BOSS !== 'undefined' && BOSS) { BOSS.lineT = 0; BOSS.swagT = 0; } // 레전더리·신화 스킬 효과는 한 턴 끝나면 사라짐
   cine = null; // 남아 있는 연출(영역전개·빔)도 정리
   if (party) party.girls.forEach((g) => (g.jumpT = 0));
   Object.assign(ball, { x: server === 0 ? LEFT_SERVE_X : RIGHT_SERVE_X, y: 0, vx: 0, vy: 1, power: false, unblockable: false, trail: [] });
@@ -388,6 +391,9 @@ function updatePlayer(p, inp) {
     if (ch.skill === 'rina') {
       cine = { kind: 'rina', t: 0, caster: p, target: foe(p), sk: RN_SKILLS[Math.floor(Math.random() * RN_SKILLS.length)] };
       sfx('whoosh');
+    }
+    if (ch.skill === 'ljh') {
+      cine = { kind: 'ljh', t: 0, caster: p, target: foe(p), sk: LJ_SKILLS[Math.floor(Math.random() * LJ_SKILLS.length)] };
     }
     if (ch.skill === 'yean') {
       cine = { kind: 'yean', t: 0, caster: p, target: foe(p), sk: YA_SKILLS[Math.floor(Math.random() * YA_SKILLS.length)] };
@@ -661,7 +667,7 @@ function hitBall(p, inp) {
     }
     if (p.rinaNerf) { p.rinaNerf = false; ball.vx *= 0.6; ball.vy *= 0.6; ball.power = false; popups.push({ text: '[출제 의도 파악 완료]', x: ball.x, y: ball.y - 20, t: 24, color: '#d080ff' }); }
     if (p.ampT > 0) { ball.vx = Math.sign(ball.vx) * Math.min(30, Math.abs(ball.vx) * 1.4); ball.vy *= 1.4; heavy(ball.x, ball.y, 1.4); popups.push({ text: '공명 증폭!', x: p.x, y: p.y - 50, t: 20, color: '#5aa8ff' }); }
-    if (p.weakT > 0) { ball.vx *= 0.45; ball.vy *= 0.45; ball.power = false; popups.push({ text: '위헌!', x: p.x, y: p.y - 50, t: 20, color: '#ffffff' }); }
+    if (p.weakT > 0) { ball.vx *= 0.45; ball.vy *= 0.45; ball.power = false; popups.push({ text: p.weakTag ? '약화!' : '위헌!', x: p.x, y: p.y - 50, t: 20, color: '#ffffff' }); }
     effects.push({ x: ball.x, y: ball.y, t: 8 });
     // 스파이크가 공에 맞으면 마나 1칸 (스킬 쓰는 중엔 안 참)
     if (p.skillT === 0 && p.mana < manaMax(p) && !(p.manaLockT > 0)) p.mana++;
@@ -924,6 +930,7 @@ function cineCam() {
   if (cine.kind === 'cmj') return cmCam(cine);
   if (cine.kind === 'yean') return yaCam(cine);
   if (cine.kind === 'rina') return rnCam(cine);
+  if (cine.kind === 'ljh') return ljCam(cine);
   if (cine.kind === 'wh') return whCam(cine);
   if (cine.kind === 'history') return cine.hero && cine.hero.key === 'gyebaek' ? histCam(cine) : withFollow(cine, histCam(cine), HIST_FIRE, HIST_HIT);
   return null;
@@ -954,6 +961,7 @@ function drawCineUI() {
   if (cine.kind === 'cmj') drawCmjUI(cine);
   if (cine.kind === 'yean') drawYeanUI(cine);
   if (cine.kind === 'rina') drawRinaUI(cine);
+  if (cine.kind === 'ljh') drawLjUI(cine);
   if (cine.kind === 'wh') drawWhUI(cine);
   if (cine.kind === 'history') drawHistUI(cine);
 }
@@ -1214,7 +1222,7 @@ const SKILL_FX = {
     return ['탄핵 소추! 상대 마나 0 + 10초 마나 봉인 · 내 마나 +2', '#ffd84d', 'far', 14]; },
   liberty: (P, T) => { P.fastT = 175; P.jumpT = 175; T.slowT = 75;
     return ['자유! 7초 내 이동속도·점프 UP + 상대 3초 감속', '#78dcc8', 'far', 16]; },
-  court:   (P, T) => { T.weakT = 175; P.guardT = 150; P.courtGuard = true;
+  court:   (P, T) => { T.weakT = 175; T.weakTag = null; P.guardT = 150; P.courtGuard = true;
     return ['위헌! 상대 스파이크 7초 약화 + 6초 헌법재판소 방어', '#ffffff', 'mid', 14]; },
   grammar: (P, T) => { T.nojumpT = 100; T.freezeT = 10; T.lagT = 75; T.lagQ = []; T.shrinkT = 100; T.shrinkK = 0.8;
     return ['F! 4초 점프 금지 + 조작 지연 + 축소', '#ff4040', 'far', 14]; },
@@ -1529,7 +1537,7 @@ function drawStatusIcons(p) {
   else if (p.flatT > 0) text('납작', p.x, p.y + 10, 8, '#ffb070');
   else if (p.blindT > 0) text('★ 눈부심', p.x, y, 8, '#ffd84d');
   else if (p.nojumpT > 0) text('F 점프 금지', p.x, y, 8, '#ff4040');
-  else if (p.weakT > 0) text('⚖ 위헌', p.x, y, 8, '#ffffff');
+  else if (p.weakT > 0) text(p.weakTag || '⚖ 위헌', p.x, y, 8, '#ffffff'); // 스파이크 약화 (김민주 삼권분립 = 위헌, 다른 스킬은 weakTag)
   else if (p.pullT > 20) text('◎ 특이점', p.x, y, 8, '#ff5ad1');
   else if (p.fastT > 0) text('자유 ▶▶', p.x, y, 8, '#78dcc8');
   else if (p.lagT > 0) text('∿ 조작 지연', p.x, y, 8, '#5aa8ff');
@@ -2442,7 +2450,7 @@ function updateYaPP() {
     } else { // 인력: 머리 처형 스파이크 + 버프 해제 + 인력 붕괴
       heavy(T.x, yaHead(T).y, 2.8); sfx('explode'); T.freezeT = Math.max(T.freezeT || 0, YA_PP.pullF);
       for (const f of ['fastT', 'jumpT', 'ampT', 'whirlT', 'sightT']) T[f] = 0;
-      T.weakT = Math.max(T.weakT || 0, 125); P.ampT = Math.max(P.ampT || 0, 125);
+      T.weakT = Math.max(T.weakT || 0, 125); T.weakTag = '🌑 인력 약화'; P.ampT = Math.max(P.ampT || 0, 125);
       ball.x = NET_X + s * 30; ball.y = 96; // 머리에 맞고 튕긴 공 (내 몸에 다시 안 맞게 상대 코트 위에서 출발)
       releaseBall(Math.max(mn, Math.min(mx, T.x + s * 64)), YA_PP.pullN);
       popups.push({ text: '萬象天引! 상대 버프 해제 + 5초 스파이크 약화 · 나 5초 증폭', x: GW / 2, y: 168, t: 60, color: '#ff6a6a' });
@@ -2536,6 +2544,204 @@ function drawYaPPUI(c) {
   }
 }
 
+// ===== 이준혁 (MYSTIC, v7.6): 트름 · 1등급 꺼드럭 · 도구리의 왕 =====
+// 트름·꺼드럭 = 3초 (FIRE 75), 도구리의 왕 = 6초 (FIRE 150). 연출이 끝나면 받을 수 있는 진짜 공 (MYSTIC = 확정 득점 없음)
+const LJ_B = 12, LJ_C = 30, LJ_DC = 40, LJ_DHIT = 122;
+const LJ_N = { burp: 18, swag: 18, doguri: 18 }; // 스킬 공 속도 (작을수록 빠름)
+const LJ_FRZ = { burp: 12, doguri: 12 };          // 상대 멈칫 프레임 (길면 무조건 득점이 돼서 짧게)
+const LJ_SKILLS = [
+  { key: 'burp', fire: 75, title: '초음파 뇌전 트름', en: 'Shockwave Burp — 800Hz Subwoofer', col: '180,90,255',
+    lines: ['"꺼어어억-!!"', '"아 점심에 먹은 탄산 배출 완료."'] },
+  { key: 'swag', fire: 75, title: '10모 올 1등급 꺼드럭', en: 'Grade 1 Swagger Field', col: '255,210,60',
+    lines: ['"너 10모 수학 21번 풀 줄은 앎?"', '"난 눈으로 3초 만에 풀었는데 ㅋ"'] },
+  { key: 'doguri', fire: 150, title: '도구리의 왕: 트랙터 10대 대진격', en: 'King of Doguri — Harvest Spike', col: '255,140,40',
+    lines: ['"감히 도구리 영토에 발을 들여?"', '"동성고를 다 밀어버리겠다-!!"'] },
+];
+const LJ_TAUNT = {
+  start: ['10모 올 1등급한테 배구까지 지면 좀 그렇지 않냐? ㅋ', '도구리 이장 출격한다. 트랙터 시동 걸어 둬.', '점심에 탄산 두 캔 마셨다. 각오해라.'],
+  error: ['아 이거 수학 21번보다 쉬운데? ㅋ', '도구리에선 이런 공 소 여물로 줌.', '1등급은 배구도 1등급이지 ㅋ'],
+  block: '어딜 넘겨? 도구리 땅 한 평도 못 준다.',
+  serve: '꺼억... 아 미안, 서브 들어간다.',
+  miss: '아 탄산 때문에 배가 부풀어서 그래...',
+  win: '도구리 영토 수호 완료. 다음 트랙터 대기시켜.',
+  lose: '이번 모의고사는... 아니, 이번 경기는 연습이었다.',
+};
+function ljSource(c) { const P = c.caster, s = P.side === 0 ? 1 : -1; return { x: P.x + s * 12, y: P.y - 30 }; } // 입 위치
+function updateLj() {
+  const c = cine, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, F = c.sk.fire, t = ++c.t;
+  players.forEach((p) => p.anim++);
+  if (!c.init) { c.init = true; c.parts = []; c.rings = []; c.x0 = P.x; c.tx0 = T.x; c.dirt = []; }
+  const src = ljSource(c), back = T.side === 0 ? 40 : GW - 40;
+  if (k === 'doguri' && t >= LJ_DHIT - 22 && t < F) { // 버킷에서 솟구친 공을 향해 공중제비
+    const q = Math.min(1, (t - (LJ_DHIT - 22)) / 22); P.y = P_GROUND_Y - Math.sin(q * Math.PI * 0.5) * 120; P.x = c.x0 + (NET_X - s * 40 - c.x0) * q; P.state = JUMP;
+  } else { P.y = P_GROUND_Y; P.state = NORMAL; }
+  P.vy = 0;
+  if (t < F) { const by = k === 'doguri' && t >= LJ_DC + 50 ? Math.max(70, 200 - (t - LJ_DC - 50) * 4) : P.y - 74; ball.x = k === 'doguri' && t >= LJ_DC + 50 ? P.x + s * 20 : P.x + s * 6; ball.y = by; ball.vx = 0; ball.vy = 0; ball.rot += 0.12; }
+  if (k === 'burp') {
+    if (t === 1) { sfx('suck'); if (bossMode) bossSfx('duck'); } // 정적 (음악 덕킹)
+    if (t === LJ_B) sfx('charge');
+    if (t < LJ_C && t % 2 === 0) c.parts.push({ x: src.x + (Math.random() - 0.5) * 10, y: src.y + (Math.random() - 0.5) * 8, vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 2, t: 14, col: Math.random() < 0.6 ? '190,100,255' : '255,70,50' });
+    if (t === LJ_C) { shake = 18; hitStop = 4; sfx('explode'); sfx('thud'); sfx('boom'); }
+    if (t >= LJ_C && t < F - 6 && t % 4 === 0) { c.rings.push({ r: 4, t: 0 }); shake = Math.max(shake, 9); if (t % 8 === 0) sfx('boom', 0.5); }
+    if (t > LJ_C) { const q = Math.min(1, (t - LJ_C) / 18); T.x = c.tx0 + (back - c.tx0) * (1 - (1 - q) * (1 - q)); } // 음파에 밀려 맨 뒤로
+  }
+  if (k === 'swag') {
+    if (t === 4) sfx('chime');
+    if (t === LJ_B) sfx('charge');
+    if (t === LJ_C) { sfx('bell'); sfx('chime'); shake = 6; }
+    if (t > LJ_C && t % 3 === 0) c.parts.push({ x: T.x + (Math.random() - 0.5) * 30, y: T.y - 40, vx: (Math.random() - 0.5) * 1.5, vy: 1 + Math.random(), t: 18, col: '160,210,255' }); // 식은땀
+  }
+  if (k === 'doguri') {
+    if (t === 1) { sfx('snap'); if (bossMode) bossSfx('duck'); }
+    if (t >= 6 && t < LJ_DHIT - 10 && t % 6 === 0) sfx('rumble', t < LJ_DC ? 0.5 : 0.9); // 디젤 엔진 10대
+    if (t === LJ_DC) { shake = 14; sfx('explode'); }
+    if (t > LJ_DC && t < LJ_DHIT - 20) { shake = Math.max(shake, 7); if (t % 2 === 0) for (let i = 0; i < 3; i++) c.dirt.push({ x: ljTractorX(c, t, Math.floor(Math.random() * 10)) - s * 30, y: 270 + Math.random() * 20, vx: -s * (1 + Math.random() * 3), vy: -2 - Math.random() * 4, t: 22 }); }
+    if (t === LJ_DHIT - 1) { hitStop = 6; sfx('suck'); }
+    if (t === LJ_DHIT) { heavy(ball.x, ball.y, 2.8); sfx('explode'); sfx('thud'); shake = 20; }
+  }
+  for (const q of c.parts) { q.x += q.vx; q.y += q.vy; q.t--; } c.parts = c.parts.filter((q) => q.t > 0);
+  for (const r of c.rings) { r.r += 10; r.t++; } c.rings = c.rings.filter((r) => r.t < 30);
+  for (const d of c.dirt) { d.x += d.vx; d.y += d.vy; d.vy += 0.5; d.t--; } c.dirt = c.dirt.filter((d) => d.t > 0);
+  if (t === F) {
+    const [mn, mx] = T.side === 0 ? [44, NET_X - 40] : [NET_X + 40, 388];
+    let msg, tx;
+    if (k === 'burp') { T.freezeT = LJ_FRZ.burp; T.stunned = true; tx = (mn + mx) / 2 + (Math.random() - 0.5) * 40; msg = '초음파 트름! 상대가 맨 뒤로 밀려남 + 귀 먹먹 멈칫'; }
+    else if (k === 'swag') { foes(P).forEach((o) => { o.weakT = 175; o.weakTag = '😩 자괴감'; o.slowT = 175; o.slowK = 0.6; }); P.ampT = 175; tx = Math.abs(T.x - mn) > Math.abs(T.x - mx) ? mn + 10 : mx - 10; msg = '1등급 꺼드럭! 7초 상대 자괴감(스파이크 약화·감속) + 나 스파이크 증폭'; }
+    else { foes(P).forEach((o) => { for (const f of ['guardT', 'blockT', 'fwT']) o[f] = 0; o.matrixGuard = false; o.courtGuard = false; }); T.freezeT = LJ_FRZ.doguri; T.stunned = true; tx = Math.max(mn, Math.min(mx, T.x + (T.x - mn > mx - T.x ? -70 : 70))); msg = '도구리의 왕! 방어막 전부 갈아엎음 + 흙에 파묻힘'; }
+    ball.x = NET_X + s * 30; ball.y = k === 'doguri' ? 90 : 110; releaseBall(tx, LJ_N[k]); // 상대 코트 위에서 출발 (내 AI가 바로 다시 안 치게)
+    if (!bossMode) popups.push({ text: msg, x: GW / 2, y: 168, t: 55, color: `rgb(${c.sk.col})` });
+    sfx('flight', 1, 0.7);
+    cine = null;
+  }
+}
+function ljTractorX(c, t, i) { // 트랙터 i번의 x (내 쪽 화면 밖 → 상대 코트 끝까지 진격)
+  const P = c.caster, s = P.side === 0 ? 1 : -1, q = Math.max(0, Math.min(1, (t - LJ_DC) / (LJ_DHIT - 30 - LJ_DC)));
+  const start = s > 0 ? -80 - (i % 5) * 26 : GW + 80 + (i % 5) * 26;
+  return start + s * (GW + 200) * q * (0.92 + (i % 3) * 0.04);
+}
+function ljCam(c) {
+  const t = c.t, P = c.caster, T = c.target, s = P.side === 0 ? 1 : -1, k = c.sk.key, H = CAM_HOME, F = c.sk.fire;
+  if (!c.init) return H;
+  const face = { x: P.x, y: P.y - 28, z: 3.6, r: 0 };
+  let keys;
+  if (k === 'burp') keys = [[0, H], [6, face], [LJ_C - 2, { ...face, z: 4.0 }], [LJ_C + 4, { x: (P.x + T.x) / 2, y: 190, z: 1.3, r: 0 }], [F - 6, { x: 216, y: 160, z: 1.05, r: 0 }], [F + 1, H]];
+  else if (k === 'swag') keys = [[0, H], [10, { x: P.x, y: P.y - 60, z: 2.2, r: 0 }], [LJ_C, { x: P.x, y: P.y - 66, z: 2.5, r: -s * 0.03 }], [LJ_C + 14, { x: T.x, y: T.y - 16, z: 2.2, r: 0 }], [F - 6, { x: 216, y: 160, z: 1.1, r: 0 }], [F + 1, H]];
+  else keys = [[0, H], [10, { x: P.x, y: P.y - 34, z: 3.0, r: 0 }], [LJ_DC - 4, { x: P.x, y: P.y - 30, z: 3.3, r: 0 }], [LJ_DC + 6, { x: 216, y: 200, z: 1.0, r: 0 }], [LJ_DC + 50, { x: 216, y: 190, z: 1.12, r: 0 }],
+    [LJ_DHIT - 12, { x: NET_X - s * 30, y: 110, z: 1.7, r: -s * 0.05 }], [LJ_DHIT, { x: NET_X, y: 130, z: 2.1, r: s * 0.04 }], [LJ_DHIT + 8, { x: T.x, y: T.y - 20, z: 1.6, r: 0 }], [F - 4, H], [F + 1, H]];
+  return camKeys(t, keys);
+}
+function drawTractor(x, y, sc, flip, t, main) { // 코드로 그린 도트 트랙터
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(sc * flip, sc);
+  const bob = Math.round(Math.sin(t * 1.3 + x) * 1);
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-30, 1, 62, 3);
+  ctx.fillStyle = main ? '#e8a020' : '#d63a2a'; ctx.fillRect(-26, -24 + bob, 40, 14); ctx.fillRect(4, -40 + bob, 16, 18); // 몸통 + 운전석
+  ctx.fillStyle = '#9fd8ff'; ctx.fillRect(7, -37 + bob, 10, 8);
+  ctx.fillStyle = '#333'; ctx.fillRect(-20, -32 + bob, 3, 10); // 배기통
+  if (t % 4 < 2) { ctx.fillStyle = 'rgba(60,60,60,.6)'; ctx.fillRect(-22, -40 + bob - (t % 8), 6, 5); }
+  ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(10, -10, 12, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(-18, -6, 7, 0, 7); ctx.fill(); // 큰 뒷바퀴 + 앞바퀴
+  ctx.fillStyle = '#ffd23f'; ctx.fillRect(8, -12, 4, 4); ctx.fillRect(-20, -8, 3, 3);
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 2; for (let i = 0; i < 4; i++) { const a = t * 0.5 + i * 1.57; ctx.beginPath(); ctx.moveTo(10, -10); ctx.lineTo(10 + Math.cos(a) * 11, -10 + Math.sin(a) * 11); ctx.stroke(); }
+  ctx.fillStyle = '#888'; ctx.fillRect(-40, -20 + bob, 14, 4); ctx.fillRect(-46, -22 + bob, 8, 14); // 앞 버킷
+  ctx.restore();
+}
+function drawLjWorld() {
+  if (!cine.init) return; /* 첫 프레임엔 아직 준비 전 (v5.11.1 버그 방지) */
+  const c = cine, t = c.t, P = c.caster, T = c.target, sk = c.sk, k = sk.key, s = P.side === 0 ? 1 : -1, src = ljSource(c), a = Math.min(1, t / 6), F = sk.fire;
+  if (k === 'burp') {
+    const g = ctx.createRadialGradient(src.x, src.y, 4, src.x, src.y, 360); g.addColorStop(0, `rgba(60,10,90,${0.7 * a})`); g.addColorStop(1, `rgba(6,0,14,${0.94 * a})`);
+    ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
+    if (t < LJ_C) { const q = t / LJ_C; ctx.save(); ctx.globalCompositeOperation = 'lighter'; // 목구멍 속 전뇌 스파크 + 화염 기류
+      for (let i = 0; i < 6; i++) { const an = t * 0.7 + i; ctx.strokeStyle = i % 2 ? `rgba(255,80,50,${0.7 * q})` : `rgba(190,110,255,${0.9 * q})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(src.x, src.y);
+        let x = src.x, y = src.y; for (let j = 0; j < 4; j++) { x += Math.cos(an + j) * 5 * q; y += Math.sin(an * 1.3 + j) * 5 * q; ctx.lineTo(x, y); } ctx.stroke(); }
+      ctx.fillStyle = `rgba(200,140,255,${0.5 * q})`; ctx.beginPath(); ctx.arc(src.x, src.y, 3 + q * 4, 0, 7); ctx.fill(); ctx.restore(); }
+    for (const r of c.rings) { // 동심원 뇌전 음파 링 (상대 쪽으로 퍼짐)
+      const al = 1 - r.t / 30; ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(190,110,255,${al})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(src.x + s * r.r * 0.3, src.y, r.r, r.r * 0.8, 0, s > 0 ? -1.2 : Math.PI - 1.2, s > 0 ? 1.2 : Math.PI + 1.2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${al * 0.7})`; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.strokeStyle = `rgba(255,90,60,${al * 0.6})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(src.x + s * r.r * 0.3, src.y, r.r * 0.9, r.r * 0.72, 0, s > 0 ? -1 : Math.PI - 1, s > 0 ? 1 : Math.PI + 1); ctx.stroke();
+      ctx.restore(); }
+    if (t > LJ_C) for (let i = 0; i < 5; i++) { const y = 150 + i * 24 + Math.sin(t + i) * 4, x0 = src.x + s * 30; ctx.fillStyle = `rgba(220,180,255,${0.25 * a})`; ctx.fillRect(Math.min(x0, x0 + s * 300), y, 300, 1.5); } // 공기를 밀어내는 수평 바람선
+  } else if (k === 'swag') {
+    const g = ctx.createLinearGradient(0, 0, 0, GH); g.addColorStop(0, `rgba(40,26,0,${0.88 * a})`); g.addColorStop(1, `rgba(10,6,0,${0.94 * a})`); ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 1500);
+    const hx = P.x, hy = P.y - 92, rise = Math.min(1, t / 14);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; // 황금 후광
+    for (let i = 0; i < 16; i++) { const an = i * 0.393 + t * 0.02; ctx.fillStyle = `rgba(255,200,60,${0.08 * rise})`; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(an) * 400, hy + Math.sin(an) * 400); ctx.lineTo(hx + Math.cos(an + 0.12) * 400, hy + Math.sin(an + 0.12) * 400); ctx.fill(); }
+    ctx.restore();
+    // 3D 황금 홀로그램 성적표 [국어 100] [수학 100] [영어 100]
+    ['국어', '수학', '영어'].forEach((nm, i) => {
+      const x = hx + (i - 1) * 40, y = hy - 8 + (1 - rise) * 40 + Math.sin(t * 0.15 + i) * 2, w = 36, h = 30;
+      ctx.save(); ctx.globalAlpha = rise;
+      for (let d = 5; d > 0; d--) { ctx.fillStyle = `rgba(150,100,0,${0.5})`; ctx.fillRect(x - w / 2 + d, y - h / 2 + d, w, h); } // 입체 두께
+      const gg = ctx.createLinearGradient(x, y - h / 2, x, y + h / 2); gg.addColorStop(0, '#fff3b0'); gg.addColorStop(1, '#e0a000'); ctx.fillStyle = gg; ctx.fillRect(x - w / 2, y - h / 2, w, h);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(x - w / 2, y - h / 2, w, h);
+      text(nm, x, y - 6, 7, '#5a3a00'); text('100', x, y + 8, 12, '#a01010');
+      ctx.restore(); });
+    if (t >= LJ_C) { ctx.save(); ctx.globalAlpha = Math.min(1, (t - LJ_C) / 8) * 0.9; text('1등급', hx, hy - 34, 14, '#ffe066'); ctx.restore();
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; const q = Math.min(1, (t - LJ_C) / 10); // 상대 시야를 덮는 채광
+      const lg = ctx.createLinearGradient(hx, hy, T.x, T.y - 20); lg.addColorStop(0, `rgba(255,220,90,${0.45 * q})`); lg.addColorStop(1, `rgba(255,220,90,${0.15 * q})`);
+      ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(hx, hy - 10); ctx.lineTo(T.x + 40, T.y - 70); ctx.lineTo(T.x + 40, T.y + 30); ctx.lineTo(T.x - 40, T.y + 30); ctx.lineTo(T.x - 40, T.y - 70); ctx.lineTo(hx, hy + 10); ctx.fill(); ctx.restore(); }
+  } else { // 도구리의 왕: 석양 농지
+    const g = ctx.createLinearGradient(0, -100, 0, 280); g.addColorStop(0, `rgba(120,30,40,${0.92 * a})`); g.addColorStop(0.6, `rgba(255,120,40,${0.9 * a})`); g.addColorStop(1, `rgba(255,190,90,${0.9 * a})`);
+    ctx.fillStyle = g; ctx.fillRect(-600, -600, 1650, 880);
+    ctx.fillStyle = `rgba(255,230,140,${0.9 * a})`; ctx.beginPath(); ctx.arc(330 - s * 120, 150, 26, 0, 7); ctx.fill(); // 해
+    ctx.fillStyle = `rgba(90,40,20,${0.9 * a})`; for (let x = -100; x < 560; x += 30) ctx.fillRect(x, 238 + Math.sin(x * 0.03) * 6, 34, 40); // 먼 언덕
+    for (let r = 0; r < 6; r++) { ctx.fillStyle = r % 2 ? `rgba(150,90,40,${a})` : `rgba(190,130,60,${a})`; ctx.fillRect(-100, 270 + r * 6, 640, 6); } // 밭고랑
+    if (t >= LJ_DC) for (let i = 9; i >= 0; i--) { const row = i % 2, x = ljTractorX(c, t, i), y = row ? 262 : 286, sc = row ? 0.9 : 1.15; if (x > -120 && x < GW + 120) drawTractor(x, y, sc, s, t + i, i === 4); }
+    for (const d of c.dirt) { ctx.fillStyle = `rgba(110,70,30,${d.t / 22})`; ctx.fillRect(d.x, d.y, 4, 4); }
+    if (t >= LJ_DC + 50 && t < LJ_DHIT) { const mx = P.x + s * 20; drawTractor(mx - s * 30, 276, 1.2, s, t, true); } // 메인 트랙터 버킷이 공을 들어 올림
+    if (t >= LJ_DHIT) { // 흙더미에 파묻힌 상대
+      const q = Math.min(1, (t - LJ_DHIT) / 8); ctx.fillStyle = '#7a4a22'; ctx.beginPath(); ctx.ellipse(T.x, 282, 34 * q, 26 * q, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#5a3418'; for (let i = 0; i < 6; i++) ctx.fillRect(T.x - 24 + i * 8, 276 - (i % 3) * 5 * q, 5, 5); }
+  }
+  for (const q of c.parts) { ctx.fillStyle = `rgba(${q.col},${q.t / 18})`; ctx.fillRect(q.x, q.y, 2.5, 2.5); }
+  // 이준혁 (꺼드럭 = 짝다리로 살짝 기울임)
+  if (k === 'swag') { const fy = P.y + 30; ctx.save(); ctx.translate(P.x, fy); ctx.rotate(-s * 0.08); ctx.translate(-P.x, -fy); drawPlayer(P); ctx.restore(); text('🫳 짝다리', P.x, P.y + 42, 7, '#ffe066'); }
+  else if (k === 'doguri' && t >= LJ_DHIT - 22 && t < LJ_DHIT) { const q = (t - (LJ_DHIT - 22)) / 22; ctx.save(); ctx.translate(P.x, P.y); ctx.rotate(-s * q * Math.PI * 2); ctx.translate(-P.x, -P.y); drawPlayer(P); ctx.restore(); } // 공중제비
+  else drawPlayer(P);
+  if (k === 'doguri') { // 황금 밀짚모자 + '도구리 이장' 띠
+    const ch = CHARACTERS[P.char], top = P.y - ch.h * (P.hm || 1) + 30;
+    ctx.save(); if (t >= LJ_DHIT - 22 && t < LJ_DHIT) { const q = (t - (LJ_DHIT - 22)) / 22; ctx.translate(P.x, P.y); ctx.rotate(-s * q * Math.PI * 2); ctx.translate(-P.x, -P.y); }
+    ctx.fillStyle = '#e8c040'; ctx.beginPath(); ctx.ellipse(P.x, top + 2, 20, 5, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#f5d860'; ctx.fillRect(P.x - 9, top - 9, 18, 10); ctx.fillStyle = '#c03020'; ctx.fillRect(P.x - 9, top - 2, 18, 3);
+    ctx.restore();
+    if (t < LJ_DHIT - 22) { ctx.save(); ctx.translate(P.x, P.y + 4); ctx.rotate(-0.5); ctx.fillStyle = '#d02020'; ctx.fillRect(-26, -4, 52, 8); text('도구리 이장', 0, 2, 6, '#fff'); ctx.restore(); }
+  }
+  // 상대 (꺼드럭: 자괴감에 찌그러져 무릎 꿇음)
+  if (k === 'swag' && t >= LJ_C) { const q = Math.min(1, (t - LJ_C) / 10), fy = T.y + 30; ctx.save(); ctx.translate(T.x, fy); ctx.scale(1 + 0.12 * q, 1 - 0.32 * q); ctx.translate(-T.x, -fy); drawPlayer(T); ctx.restore();
+    text('자괴감...', T.x, T.y - 44 + 10 * q, 9, '#9fd0ff'); }
+  else drawPlayer(T);
+  if (T.stunned || (k === 'burp' && t > LJ_C)) for (let i = 0; i < 3; i++) { const an = t * 0.3 + i * 2.1; text(k === 'burp' ? '♪' : '★', T.x + Math.cos(an) * 16, T.y - 46 + Math.sin(an) * 4, 9, k === 'burp' ? '#c89bff' : '#ffe066'); }
+  if (k === 'doguri' ? t >= LJ_DC + 50 : t >= F - 12) drawBall(); // 클로즈업 땐 공 숨김
+  if (k === 'doguri' && t >= LJ_DHIT - 4 && t < LJ_DHIT + 10) chargeFX(ball.x, ball.y, Math.min(1, (t - LJ_DHIT + 4) / 6), '255,160,60');
+}
+function ljPixelate(n) { // 화면을 도트로 (트름 반전 순간)
+  const cv = ctx.canvas, w = Math.max(1, Math.floor(cv.width / n)), h = Math.max(1, Math.floor(cv.height / n));
+  const tmp = ljPixelate.c || (ljPixelate.c = document.createElement('canvas')); tmp.width = w; tmp.height = h;
+  const x = tmp.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(cv, 0, 0, w, h);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false; ctx.drawImage(tmp, 0, 0, w, h, 0, 0, cv.width, cv.height); ctx.restore();
+}
+function drawLjUI(c) {
+  const t = c.t, sk = c.sk, k = sk.key, a = Math.min(1, t / 6), F = sk.fire;
+  if (k === 'burp') {
+    if (t >= LJ_C - 1 && t < LJ_C + 7) { ljPixelate(t < LJ_C + 3 ? 6 : 3); ctx.save(); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, GW, GH); ctx.restore(); } // 흑백 네거티브 + 도트
+    if (t >= LJ_C && t < LJ_C + 30) { const q = (t - LJ_C) / 30, sc = 1 + (1 - Math.min(1, q * 4)) * 1.6; ctx.save(); ctx.translate(GW / 2, 110); ctx.scale(sc, sc); ctx.rotate(Math.sin(t) * 0.04);
+      ctx.globalAlpha = 1 - q * 0.6; ctx.font = 'bold 30px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#7a2cff'; ctx.fillText('꺼어어억-!!', 3, 3); ctx.fillStyle = '#fff'; ctx.fillText('꺼어어억-!!', 0, 0); ctx.restore(); }
+    if (t >= LJ_C) { ctx.save(); ctx.globalAlpha = 0.8 * a; ctx.textAlign = 'left'; ctx.font = 'bold 8px monospace'; ctx.fillStyle = '#c89bff'; ctx.fillText('▮▮▮ 800Hz SUBWOOFER ' + '▮'.repeat(1 + (t % 6)), 16, 58); ctx.restore(); }
+  }
+  if (k === 'swag' && t >= LJ_C && t < LJ_C + 4) { ctx.fillStyle = `rgba(255,230,120,${0.5 - (t - LJ_C) * 0.12})`; ctx.fillRect(0, 0, GW, GH); }
+  if (k === 'swag' && t >= LJ_C + 6) { ctx.save(); ctx.globalAlpha = Math.min(1, (t - LJ_C - 6) / 6); text('EMOTIONAL DAMAGE', GW / 2, 104, 18, '#ffd23f'); ctx.restore(); }
+  if (k === 'doguri') {
+    if (t >= LJ_DC && t < LJ_DC + 14) { const q = (t - LJ_DC) / 14; ctx.save(); ctx.translate(GW / 2, 104); const sc = 1 + (1 - Math.min(1, q * 3)) * 1.5; ctx.scale(sc, sc); ctx.globalAlpha = 1 - Math.max(0, q - 0.7) * 3;
+      ctx.font = 'bold 22px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#5a1a00'; ctx.fillText('부르르릉-! 콰콰콰쾅-!', 2, 2); ctx.fillStyle = '#ffe066'; ctx.fillText('부르르릉-! 콰콰콰쾅-!', 0, 0); ctx.restore(); }
+    if (t >= LJ_DHIT && t < LJ_DHIT + 3) { ctx.fillStyle = `rgba(255,200,120,${0.6 - (t - LJ_DHIT) * 0.2})`; ctx.fillRect(0, 0, GW, GH); }
+    if (t >= LJ_DHIT && t < F) { ctx.save(); ctx.globalAlpha = Math.min(1, (t - LJ_DHIT) / 4); text('수확 완료.', GW / 2, 110, 20, '#ffb040'); ctx.restore(); }
+  }
+  ctx.save(); ctx.globalAlpha = a;
+  text(sk.title, GW / 2, 22, 12, `rgb(${sk.col})`); text(sk.en, GW / 2, 34, 8, '#fff');
+  const L2 = k === 'doguri' ? LJ_DC - 4 : LJ_C - 6;
+  sk.lines.forEach((ln, i) => { const st = i ? L2 : LJ_B - 6, n = Math.max(0, Math.min(ln.length, Math.floor((t - st) * 1.6))); if (n <= 0) return; const y = 262 + i * 17; ctx.font = `bold ${i ? 11 : 10}px "Malgun Gothic", sans-serif`; const w = ctx.measureText(ln).width + 16; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(GW / 2 - w / 2, y - 12, w, 16); text(ln.slice(0, n), GW / 2, y, i ? 11 : 10, i ? '#ffe066' : '#fff'); });
+  ctx.restore();
+}
+
 // ===== 김우현 (MYTHIC): 135cm 방송부 부장 — 4초 "한번 더!" 더블 하이파이브 3종 =====
 const WH_B = 25, WH_HIT1 = 52, WH_FIRE = 75, WH_END = 100;
 const RAINBOW = ['255,40,40', '255,140,0', '255,230,0', '40,220,80', '40,140,255', '80,60,220', '180,60,255'];
@@ -2623,7 +2829,7 @@ function updateWh() {
     else { heavy(src.x, src.y, 2.6); sfx('explode'); sfx('flight', 1, 0.7); ball.x = src.x; ball.y = src.y; P.state = JUMP; P.vy = 0; }
     let msg;
     if (k === 'line') { // 7초 동안 네트 당김 유지 + 상대 스파이크 약화 + 넓어진 상대 코트 빈 곳으로 공
-      P.lineT = WH_LINE_T; foes(P).forEach((o) => { o.weakT = Math.max(o.weakT || 0, WH_LINE_T); });
+      P.lineT = WH_LINE_T; foes(P).forEach((o) => { o.weakT = Math.max(o.weakT || 0, WH_LINE_T); o.weakTag = '🔴 선 넘지 마'; });
       const tmn = T.side === 0 ? 44 : NET_X + 44, tmx = T.side === 0 ? NET_X - 44 : 388;
       const tx = Math.abs(T.x - tmn) > Math.abs(T.x - tmx) ? tmn + 6 : tmx - 6;
       ball.x = NET_X + s * 30; ball.y = 110; releaseBall(tx, WH_LINE_N); // 상대 코트 위에서 출발 (내 쪽 AI가 바로 다시 안 치게)
@@ -3793,6 +3999,7 @@ function mathTaunt(kind, p) {
   if (sk === 'gm') str = kind === 'error' && Math.random() < 0.5 ? GM_TAUNT.win : GM_TAUNT[kind];
   if (sk === 'jjh') { const v = JJ_TAUNT[isFem(players[1 - p.side]) ? 'f' : 'm'][kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
   if (sk === 'rina') { const v = RN_TAUNT[kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
+  if (sk === 'ljh') { const v = LJ_TAUNT[kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
   const oSk = (CHARACTERS[players[1 - p.side].char] || {}).skill;
   if (sk === 'yean') { const v = (oSk === 'wh' && YEAN_VS_WH[kind] && Math.random() < 0.7) ? YEAN_VS_WH[kind] : YA_TAUNT[kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
   if (sk === 'wh') { const v = (oSk === 'yean' && WH_VS_YEAN[kind] && Math.random() < 0.7) ? WH_VS_YEAN[kind] : WH_TAUNT[kind]; str = Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v; }
@@ -5443,6 +5650,7 @@ function drawBeam() {
   if (cine.kind === 'cmj') { drawCmjWorld(); return; }
   if (cine.kind === 'yean') { drawYeanWorld(); return; }
   if (cine.kind === 'rina') { drawRinaWorld(); return; }
+  if (cine.kind === 'ljh') { drawLjWorld(); return; }
   if (cine.kind === 'wh') { drawWhWorld(); return; }
   if (cine.intro < INTRO_FRAMES) { drawCutIn(); return; }
   const t = cine.t, tx = cine.target.x;
@@ -5596,6 +5804,8 @@ function update() {
   } else if (state === 'play') {
     if (cine && cine.kind === 'rina') {
       updateRina();
+    } else if (cine && cine.kind === 'ljh') {
+      updateLj();
     } else if (cine && cine.kind === 'wh') {
       updateWh();
     } else if (cine && cine.kind === 'yean') {
@@ -6165,7 +6375,7 @@ function draw() {
   if (isMenu()) drawCrowd();
   else if (state !== 'select') { if (bossMode) drawBossWorld(); players.forEach(drawMatrixField); players.forEach(drawPlayer); drawMatrixHits(); if (bossMode) drawBossWorldTop(); }
   if (state !== 'select' && state !== 'title') drawPartyField();
-  if (!isMenu() && state !== 'select' && !(cine && cine.kind === 'history' && cine.t < HIST_FIRE) && !(cine && (cine.kind === 'kim' || cine.kind === 'gm' || cine.kind === 'jmw' || cine.kind === 'jjh' || cine.kind === 'cmj' || cine.kind === 'yean' || cine.kind === 'rina' || cine.kind === 'wh'))) drawBall();
+  if (!isMenu() && state !== 'select' && !(cine && cine.kind === 'history' && cine.t < HIST_FIRE) && !(cine && (cine.kind === 'kim' || cine.kind === 'gm' || cine.kind === 'jmw' || cine.kind === 'jjh' || cine.kind === 'cmj' || cine.kind === 'yean' || cine.kind === 'rina' || cine.kind === 'wh' || cine.kind === 'ljh'))) drawBall();
   drawLiteParts();
   drawFakes(); drawStrikes();
   drawBeam();
@@ -6837,7 +7047,7 @@ function drawE308() {
 //       키 입력은 NET_DELAY 프레임 뒤에 적용 (0.12초) → 인터넷이 조금 느려도 끊기지 않게.
 // 방장 = 왼쪽(파랑), 참가자 = 오른쪽(빨강). 각자 DRGF+Z+Shift 또는 방향키+Enter+; 아무거나 써도 됨.
 // =====================================================================
-const NET_VERSION = 'v7.5-' + NCHAR;
+const NET_VERSION = 'v7.6-' + NCHAR;
 const NET_PREFIX = 'dsvb26-';      // PeerJS 방 이름 앞에 붙는 글자 (방 코드 4자리랑 합쳐짐)
 const NET_DELAY = 3;               // 키 입력 지연 (프레임) — 3 = 0.12초
 // 중계(TURN) 서버 (v7.2.1): 학교 와이파이처럼 직접 연결이 막힌 곳에서 이 서버를 거쳐 우회함.
@@ -7379,7 +7589,7 @@ const WEAK = { order: 'pyro', cyber: 'phys', phys: 'order', pyro: 'cyber' }; // 
 // 캐릭터별로 쓸 수 있는 속성 (문서 '14인 요약표'). 첫 번째가 기본 속성
 const CHAR_ELEM = { sock: ['order'], jmw: ['pyro', 'phys', 'cyber'], giant: ['phys'], whirl: ['phys'], gm: ['pyro', 'order', 'phys'],
   kim: ['order', 'cyber', 'phys', 'pyro'], party: ['pyro'], history: ['pyro', 'phys', 'cyber', 'order'], math: ['cyber', 'phys', 'order'],
-  jjh: ['phys', 'order', 'pyro', 'cyber'], cmj: ['cyber', 'pyro', 'phys', 'order'], yean: ['pyro', 'order', 'phys'], rina: ['cyber', 'order', 'phys', 'pyro'], wh: ['cyber', 'order', 'phys'] };
+  jjh: ['phys', 'order', 'pyro', 'cyber'], cmj: ['cyber', 'pyro', 'phys', 'order'], yean: ['pyro', 'order', 'phys'], rina: ['cyber', 'order', 'phys', 'pyro'], wh: ['cyber', 'order', 'phys'], ljh: ['phys', 'pyro', 'order', 'cyber'] };
 // 세부 스킬별 속성 (문서 '14명 캐릭터 전체 스킬 & 세부 속성 상세표')
 const SKILL_ELEM = {
   'cmj:swap': 'cyber', 'cmj:emc2': 'pyro', 'cmj:rootkit': 'cyber', 'cmj:ai': 'phys', 'cmj:time': 'order', 'cmj:bsod': 'cyber', 'cmj:bigbang': 'pyro',
@@ -7389,7 +7599,7 @@ const SKILL_ELEM = {
   'yean:rage': 'pyro', 'yean:evict': 'order', 'yean:scream': 'phys', 'yean:push': 'order', 'yean:pull': 'cyber',
   'rina:math': 'cyber', 'rina:kor': 'order', 'rina:eng': 'phys', 'rina:sci': 'pyro', 'rina:soc': 'order',
   'jmw:meteor': 'pyro', 'jmw:pinball': 'phys', 'jmw:sonic': 'cyber', 'gm:flash': 'pyro', 'gm:grade3': 'order', 'gm:feint': 'phys',
-  'jjh:chivalry': 'phys', 'jjh:letter': 'pyro', 'jjh:block': 'cyber', 'wh:broadcast': 'cyber', 'wh:evict': 'order', 'wh:clap': 'phys', 'wh:line': 'order',
+  'jjh:chivalry': 'phys', 'jjh:letter': 'pyro', 'jjh:block': 'cyber', 'wh:broadcast': 'cyber', 'wh:evict': 'order', 'wh:clap': 'phys', 'wh:line': 'order', 'ljh:burp': 'phys', 'ljh:swag': 'order', 'ljh:doguri': 'phys',
   'party:party': 'pyro', 'lite:giant': 'phys', 'lite:whirl': 'phys', 'sock:sock': 'order', 'meteor:meteor': 'pyro',
 };
 const BOSS_TRUE = ['kim:lincoln', 'math:euler', 'history:ship', 'yean:evict', 'cmj:bigbang']; // 확정 득점 스킬 = 쉴드 무시 고정 피해
@@ -7577,7 +7787,7 @@ function bossDamage(amount, o = {}) {
   const b = players[1], src = o.src ?? -1;
   if (B.orbs && B.orbs.length) { if (B.invT <= 0) { B.invT = 30; bossPop('무적! 원소 궤도성부터 부숴', '#d8d8e8', 96, 24); } return 0; } // 페이즈 3 시작: 무적
   if (B.buffT > 0) amount *= 2;            // 교칙 준수율 MAX 버프
-  let tru = o.tru;
+  let tru = o.tru || B.swagT > 0; // 꺼드럭: 방어력 0% (트루)
   if (B.groggyT > 0) { amount *= o.fixed ? 1 : o.hit ? 3 : 1.5; tru = true; } // 그로기: 공 타격은 트루 데미지 300% (스킬 150%, 득점 폭발은 그대로)
   const x = o.x ?? b.x, y = o.y ?? hitTop(b) + 10;
   if (B.sh > 0 && !tru && !o.ignore) { // 속성 보호막이 먼저 받음
@@ -7687,12 +7897,12 @@ function bossPostHit(p, inp, info) {
   B.seq.push({ i, elem }); if (B.seq.length > 3) B.seq.shift();
   if (!info.power) { addMP(p, 10); B.fx = { i, send: true, judge: 0.3, combo: 1, elems: [elem], x: p.x }; return; } // 리시브·토스 (넘어가면 약한 피해)
   // 스파이크: 타이밍 판정
-  const el = 9 - info.powerT, judge = el <= 2 ? 'P' : el <= 5 ? 'G' : 'B';
+  const el = 9 - info.powerT, judge = B.swagT > 0 ? 'P' : el <= 2 ? 'P' : el <= 5 ? 'G' : 'B'; // 꺼드럭: PERFECT 고정
   const jm = { P: 2, G: 1, B: 0.3 }[judge];
   if (judge === 'P') B.stats.perfect++;
   if (B.phase === 2 && !B.cast && ++B.noise >= 5) { B.noise = 0; bossCast('mute'); } // 소음 측정기: 스파이크 5번 → 160dB 카운터
   const n = B.seq.length, elems = B.seq.map((q) => q.elem);
-  addMP(p, Math.max(({ P: 20, G: 10, B: 0 })[judge], [0, 5, 15, 30][n])); // 판정 MP와 연계 MP 중 큰 쪽
+  addMP(p, Math.max(({ P: 20, G: 10, B: 0 })[judge], [0, 5, 15, 30][n]) * (B.swagT > 0 ? 2 : 1)); // 판정 MP와 연계 MP 중 큰 쪽 (꺼드럭: 2배)
   if (n === 3) B.rallyG += 20;
   let fusion = null;
   if (n === 3 && elems[0] === elems[1] && elems[1] === elems[2]) fusion = 'pure';
@@ -7766,8 +7976,8 @@ function bossTick() {
   const D = BOSS_DIFF[bossDiff], b = players[1];
   if (--B.time <= 0) { B.time = 0; bossEnd(false, '시간 초과'); return; }
   if (B.hurtT > 0) B.hurtT--;
-  if (B.lineT > 0) B.lineT--;
-  if (B.buffT > 0) B.buffT--;
+  if (B.swagT > 0) { B.swagT--; B.rage = Math.min(B.rage, B.swagRage || 0); } // 꺼드럭: 통제도 동결
+  if (B.buffT > 0) B.buffT--; // (B.lineT는 아래 '마나 칸 표시용' 밑에서 줄어듦 — 두 번 줄이면 3.5초가 됨)
   if (B.fusion && --B.fusion.t <= 0) B.fusion = null;
   if (B.judge && --B.judge.t <= 0) B.judge = null;
   for (const n of B.nums) { n.t--; n.y -= 0.8; } B.nums = B.nums.filter((n) => n.t > 0);
@@ -7884,6 +8094,9 @@ function bossSkillHit(c) { // 스킬 연출이 끝남 → 보스 피해
   if (!BOSS || B.clearing || state === 'over') return;
   if (B.orbs && B.orbs.length) { bossOrbHit(elem, i, true); return; } // 무적 중엔 스킬이 구체 하나를 부숨
   if (BOSS_TRUE.includes(key)) { bossDamage(B.hpMax * 0.08, { tru: true, src: i, fixed: true }); bossPop('확정 스킬! 쉴드 무시 고정 피해', '#ff5aa0', 92, 44); B.stats.clutch[i] += 2; }
+  else if (key === 'ljh:burp') { if (B.sh > 0) bossDamage(D.dmg * 4, { elem, src: i, pure: true, shMul: 2 }); else bossDamage(D.dmg * 4, { elem, src: i }); B.brk -= 12; } // 쉴드 200% (속성 무시)
+  else if (key === 'ljh:doguri') { if (B.sh > 0) bossDamage(D.dmg * 4, { elem, src: i, pure: true, shMul: 3 }); bossDamage(D.dmg * 6, { tru: true, src: i }); B.brk -= 16;
+    popups.push({ text: '👑 HEAD! 수확 처형', x: players[1].x, y: hitTop(players[1]) - 6, t: 30, color: '#ffb040' }); } // 쉴드 300% + 머리 트루
   else if (key === 'yean:pull') { bossDamage(D.dmg * 6, { elem, src: i, ignore: true }); B.brk -= 14; popups.push({ text: '👑 HEAD! 처형 스파이크', x: players[1].x, y: hitTop(players[1]) - 6, t: 30, color: '#ff5060' }); } // 머리 강제 판정 150% (쉴드 무시)
   else { bossDamage(D.dmg * 4, { elem, src: i }); B.brk -= 10; }
   if (key === 'jjh:chivalry' && B.desks.length) { B.desks.forEach((d) => { d.life = 0; d.smash = true; }); bossDamage(D.dmg * 2, { elem: 'phys', src: i, quiet: true }); bossPop('책상 완파! 파편이 보스에게', '#ff8a6a', 120, 40); B.stats.clutch[i]++; }
@@ -8346,7 +8559,7 @@ const BOSS_PHASE = [null,
 const ORB_ORDER = ['order', 'cyber', 'phys', 'pyro']; // 4색 원소 구체 파괴 순서 (각각 약점 속성으로)
 const ELEM_KEYS = ['cyber', 'pyro', 'order', 'phys'];
 const CAST_INFO = { mute: ['소음 측정기 160dB — 음소거!', '#78c8ff'], punish: ['체벌 집행', '#ff5a5a'], illusion: ['타임루프 시공간 균열', '#c8a0ff'], disaster: ['역사적 재앙 강타', '#ff8a3a'] };
-const SKILL_ARR = () => ({ cmj: CM_SKILLS, history: HEROES, math: MATH_SKILLS, kim: KIM_SKILLS, yean: YA_SKILLS, rina: RN_SKILLS, jmw: JM_SKILLS, gm: GM_SKILLS, jjh: JJ_SKILLS, wh: WH_SKILLS });
+const SKILL_ARR = () => ({ cmj: CM_SKILLS, history: HEROES, math: MATH_SKILLS, kim: KIM_SKILLS, yean: YA_SKILLS, rina: RN_SKILLS, jmw: JM_SKILLS, gm: GM_SKILLS, jjh: JJ_SKILLS, wh: WH_SKILLS, ljh: LJ_SKILLS });
 
 function bossNextPhase() { // 다음 페이즈 시작
   const B = BOSS, D = BOSS_DIFF[bossDiff];
@@ -8537,6 +8750,9 @@ function bossAutoPick(c) {
     [B.desks.length > 0 || B.mobs.length > 0 || B.bombs.length > 0 || fakesOn, 'yean', 'push', '신라천정 → 장해물·잡몹·투사체 전부 반사'],
     [!!(B.cast || B.gaze || B.rageArmed), 'yean', 'pull', '만상천인 → 캐스팅 즉시 취소'],
     [!!(B.cast || B.exec || B.gaze), 'wh', 'line', '선 긋기 → 캐스팅 50% 둔화 + 히트박스 2배'],
+    [!!(B.exec || (B.cast && B.cast.k === 'disaster')), 'ljh', 'doguri', '도구리의 왕 → 5초 매몰 + 즉형 카운트 리셋'],
+    [B.desks.length > 0 || B.mobs.length > 0 || B.bombs.length > 0 || fakesOn || !!B.cast, 'ljh', 'burp', '초음파 트름 → 전부 밀쳐내기 + 3.5초 스턴'],
+    [B.rage >= 60, 'ljh', 'swag', '1등급 꺼드럭 → 통제도 동결'],
   ];
   for (const [on, kind, key, msg] of rules) {
     if (!on || c.kind !== kind) continue;
@@ -8587,6 +8803,19 @@ function bossSkillCounter(c, key, elem, i) {
     const b = players[1]; b.freezeT = Math.max(b.freezeT || 0, 100); if (B.groggyT > 0) B.groggyT += 50;
     if (B.sh > 0) bossDamage(D.dmg * 10, { elem, src: i, pure: true });
     bossPop('벽 꽂힘! 보스 4초 행동 불능', '#c89bff', 116, 40);
+  }
+  if (key === 'ljh:burp' || key === 'ljh:doguri') { // 트름 음파 / 트랙터: 장해물·잡몹·폭탄·환영공 전부 쓸어버림 + 보스 스턴
+    const dog = key === 'ljh:doguri', nf = fakes.filter((f) => f.boss).length, n = B.desks.length + B.mobs.length + B.bombs.length + nf;
+    B.desks.forEach((d) => { d.life = 0; d.smash = true; }); B.mobs = []; B.bombs = []; B.illuArmed = false; if (dog) B.zones = [];
+    for (let q = fakes.length - 1; q >= 0; q--) if (fakes[q].boss) fakes.splice(q, 1);
+    if (n) { bossDamage(D.dmg * 1.5 * n, { elem: 'phys', src: i, quiet: true }); bossPop(dog ? `트랙터가 ${n}개 깔아뭉갬 → 보스 코트로` : `트름 음파! ${n}개 밀쳐냄 → 보스 코트 구석으로`, dog ? '#ffb040' : '#c89bff', 104, 44); clutch(); B.rallyG += 15; }
+    const b = players[1]; b.freezeT = Math.max(b.freezeT || 0, dog ? 125 : 88); b.stunned = true;
+    if (B.cast) { B.cast = null; B.spots = []; bossPop(dog ? '[흙더미 매몰] 캐스팅 완전 불능' : '[청각 마비] 캐스팅 취소', '#7dff9a', 116, 36); clutch(); }
+    if (dog && B.exec) { B.exec.t = B.exec.max; bossPop('즉형 집행 카운트 리셋!', '#ffb040', 128, 40); clutch(2); }
+    bossPop(dog ? '흙더미에 파묻힘! 보스 5초 행동 불능' : '청각 마비! 보스 3.5초 무방비', dog ? '#ffb040' : '#c89bff', 92, 44);
+  }
+  if (key === 'ljh:swag') { // 1등급 꺼드럭: 7초 트루 데미지 + 파티 PERFECT 고정 + MP 2배 + 통제도 동결
+    B.swagT = 175; B.swagRage = B.rage; bossPop('1등급 꺼드럭! 7초 방어력 0% · 전원 PERFECT · 통제도 동결', '#ffd23f', 104, 50); clutch();
   }
   if (key === 'yean:pull') { // 만상천인: 캐스팅 즉시 취소 + 인력 붕괴
     const had = B.cast || B.gaze || B.rageArmed;
