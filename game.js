@@ -1,5 +1,5 @@
 // ===== 설정 (여기만 바꾸면 돼요) =====
-const GAME_VERSION = 'v8.7'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
+const GAME_VERSION = 'v8.8'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
 const CONFIG = {
   WIN_SCORE: 15,          // 몇 점 내면 이기는지
   FPS: 25,                // 1초에 몇 번 움직이는지 (원작 보통 속도 25)
@@ -10955,7 +10955,7 @@ function drawShyField() {
 // 로그인 정보는 localStorage 'dsvb_auth' {uid, id, name, refresh}에 저장 → 다음엔 자동 로그인
 // ★ FB 두 칸은 사용자가 Firebase 프로젝트를 만들면 채우기 (비어 있으면 게스트만 됨)
 // =====================================================================
-const FB = { apiKey: '', projectId: '' };
+const FB = { apiKey: 'AIzaSyD1PVOBH0W-8aMf1C7AhBu6z3qjdA5Gma4', projectId: 'dongsung-volleyball' }; // v8.8 진짜 Firebase (apiKey는 공개돼도 되는 값, 보안은 Firestore 규칙이 맡음)
 const FB_ON = () => !!(FB.apiKey && FB.projectId);
 const AUTH = { user: null, guest: false, asked: false, ui: null, tab: 'in', busy: false };
 window.AUTH_OPEN = false;

@@ -1,4 +1,4 @@
-# HANDOFF — 동성 배구 대전 (v7.2 기준, v8.7까지 기록 · 새 채팅 인수인계 완전판)
+# HANDOFF — 동성 배구 대전 (v7.2 기준, v8.8까지 기록 · 새 채팅 인수인계 완전판)
 
 > **새 채팅의 Claude에게**
 > 이 문서를 처음부터 끝까지 다 읽고 작업을 이어 가 줘. 특히 **§1 작업 규칙**은 사용자가 직접 정한 거라 꼭 지켜야 해.
@@ -19,7 +19,7 @@
 - 코드는 전부 `game.js` 한 파일(약 8,000줄). 실행은 `index.html`
 - 캐릭터는 사용자 친구들의 **실제 사진**(배경만 지운 원본 사진)
   - 등급 + 시네마틱 스킬 + 전용 대사가 있음
-- 현재 버전: **v8.7** (피직스 축구 soccer.js **v0.2.2**)
+- 현재 버전: **v8.8** (피직스 축구 soccer.js **v0.2.2**)
 - **v8.2 기록실** (로그인하면 전적·랭킹·친구·인증서·칭호·주간 통계, §19) — Firebase 값 받으면 바로 켜짐
 
 ---
@@ -703,9 +703,11 @@ python3 tools/build_preview.py "출력경로/volleyball-preview.html"
   - 크기: 강병국 24×76(전신, 치마), 주민하 57×54(얼굴+손), 손하윤 52×62(증명사진 상반신), 최재훈 44×75, 이소정 54×64
   - **최재훈**: 사용자 '기본부터 턱을 3배 길게, 턱으로 뛰어다니게' → 목·옷은 턱선 따라 잘라 내고 **입 아래~턱선 띠를 세로 3배로 늘린 사진**을 cjh.png로 저장 (맨 아래 = 턱 끝). `CJ_FACE` {cx .415, cy .96, hw .14, sh .06}. 그리기만: 땅에서 움직이면 턱으로 콩콩 뛰고(높이 9) 착지할 때 찌그러짐 + 먼지, 가만히 있으면 살짝 통통 (`CJ_LX` WeakMap으로 이동 감지, 게임 상태엔 안 넣음)
   - **이소정 버전마다 다른 사진**: v1 = assets/lsj.png(새우 인형 안은 사진), v2 = lsj2.png(기차 창문 브이), v3·v4 = lsj3.png(얼굴+손). 세 장 다 0.85 비율 캔버스에 아래 가운데 정렬. drawPlayer 감싸기에서 imgs['char'+번호]를 잠깐 바꿔 그림 (컷인은 v1 사진)
+- v8.8 **진짜 Firebase 연결**: 프로젝트 `dongsung-volleyball` (Spark 무료, Authentication 이메일/비밀번호 켬, Firestore Standard · asia-northeast3 서울 · 프로덕션 모드 + §19 보안 규칙 게시). game.js `FB = { apiKey: 'AIzaSyD1PVOBH0W-8aMf1C7AhBu6z3qjdA5Gma4', projectId: 'dongsung-volleyball' }` (apiKey는 공개돼도 되는 값). 클라우드 셸은 googleapis가 막혀서 **노트북 내장 브라우저(example.org 페이지에서 fetch)로 진짜 서버 확인**: 가입·로그인 200, 내 문서 쓰기+통계 increment 200, **남의 문서 쓰기 403 · 로그인 없이 쓰기 403**(규칙 정상), 게스트 랭킹 읽기 200, 친구 신청 만들기·조회 200. 테스트 계정·문서는 다 지움(users 0개)
 
 ## 13. 남은 일 / 대기 중
-- **★ Firebase 연결 대기:** 기록실·랭킹 코드는 v8.2에서 다 만듦. 사용자가 Firebase 프로젝트 만들고(Authentication → 이메일/비밀번호 켜기, Firestore 서울, Spark 무료 — **Blaze 절대 X**) apiKey·projectId 주면 → game.js `FB`에 넣기 + Firestore **보안 규칙(§19)** 붙여 넣으라고 안내 → 진짜 로그인·기록·친구 확인
+- **★ 사이트 옮기기 (다음 할 일)**: 지금 주소 `fewwarrior11045.github.io/volleyball-game`은 사용자 개인 사이트 밑이라 **애드센스 심사 중인 원래 사이트에 붙어 있음** → 독립 주소 필요. 추천안: GitHub **조직(Organization, 무료)** 만들기 → volleyball-game 저장소 Transfer → 이름을 `조직이름.github.io`로 → Pages 켜기 → 노트북 `.git/config` remote 주소 바꾸기(Claude가). 대안: Cloudflare Pages / Netlify / Firebase 호스팅. 조직 이름 아직 안 정함. 옮기면 localStorage(자동 로그인 등)는 새 주소로 안 따라감 → 한 번 다시 로그인 (서버 기록은 그대로)
+- ~~Firebase 연결 대기~~ → **v8.8 연결 완료** (아래 §13 맨 위). 옛 메모: 기록실·랭킹 코드는 v8.2에서 다 만듦. 사용자가 Firebase 프로젝트 만들고(Authentication → 이메일/비밀번호 켜기, Firestore 서울, Spark 무료 — **Blaze 절대 X**) apiKey·projectId 주면 → game.js `FB`에 넣기 + Firestore **보안 규칙(§19)** 붙여 넣으라고 안내 → 진짜 로그인·기록·친구 확인
 - ~~사진 대기~~ → **v8.7에서 5명 다 진짜 사진** (강병국·주민하·손하윤·최재훈·이소정 v1/v2/v3) → 사용자가 사진 주면 §7 방법으로 교체
 - 피직스 축구: 스킬(몇 명씩), 원작 랜덤 변수(얼음 바닥·저중력·큰 공 등) — 사용자가 하자고 할 때
 - [x] 이동우 실명으로 변경 완료 (v5.12)
