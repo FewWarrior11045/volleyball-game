@@ -1,5 +1,5 @@
 // ===== 설정 (여기만 바꾸면 돼요) =====
-const GAME_VERSION = 'v8.8'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
+const GAME_VERSION = 'v8.9'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
 const CONFIG = {
   WIN_SCORE: 15,          // 몇 점 내면 이기는지
   FPS: 25,                // 1초에 몇 번 움직이는지 (원작 보통 속도 25)
@@ -11186,11 +11186,14 @@ async function recFlush() { // 못 올린 것 서버에 올리기 (한 번에 �
   const weeks = Object.keys(REC.statsQ).filter((w) => Object.keys(REC.statsQ[w]).length);
   if (!REC.dirty && !weeks.length) return;
   recFlushing = (async () => {
+    // v8.9 관리자: 올리기 전에 서버를 한 번 봐서 관리자가 초기화했으면 내 옛 기록을 덮어쓰지 않음 (읽기 1번)
+    let wiped = false;
+    if (REC.dirty) { try { wiped = await recAdminPull(); } catch (err) { /* 못 읽으면 그냥 올림 (올리기도 아마 실패) */ } }
     const ver = REC.ver, Q = REC.statsQ, P = REC.P;
     REC.statsQ = {};
-    P.upd = Date.now(); P.id = AUTH.user.id; P.name = AUTH.user.name;
+    P.upd = Date.now(); P.id = AUTH.user.id; P.name = P.nick || AUTH.user.name;
     const writes = [];
-    if (REC.dirty) writes.push({ update: { name: FS_DOC('users/' + REC.uid), fields: fsFields(P) } });
+    if (REC.dirty && !wiped) writes.push(recUserWrite(REC.uid, P));
     weeks.forEach((w) => writes.push({ transform: { document: FS_DOC('stats/' + w), fieldTransforms: Object.keys(Q[w]).map((f) => ({ fieldPath: f, increment: { integerValue: String(Q[w][f]) } })) } }));
     try { await fsCommit(writes); if (REC.ver === ver) REC.dirty = false; REC.msg = ''; delete REC.cache['u:' + REC.uid]; }
     catch (err) { for (const w in Q) { const q = REC.statsQ[w] = REC.statsQ[w] || {}; for (const f in Q[w]) q[f] = (q[f] || 0) + Q[w][f]; } REC.msg = err.message; throw err; }
@@ -11205,7 +11208,7 @@ async function recSync() { // 로그인했을 때 · 게임 켤 때: 못 올린 
     if (REC.dirty) await recFlush();
     else {
       const j = await fsReq('GET', '/users/' + REC.uid, null, true);
-      if (j) { REC.P = Object.assign(recNew(AUTH.user), fsObj(j.fields)); recSaveLocal(); }
+      if (j) { REC.P = Object.assign(recNew(AUTH.user), fsObj(j.fields)); recApplyNick(); recSaveLocal(); }
       else { REC.P = recNew(AUTH.user); recChanged(); await recFlush(); } // 처음 로그인: 빈 기록 만들기
     }
     await recFriendSync();
@@ -11285,7 +11288,7 @@ async function recGet(key, fn) {
   const v = await fn(); REC.cache[key] = { t: Date.now(), v }; return v;
 }
 const recUser = (uid) => recGet('u:' + uid, async () => { const j = await fsReq('GET', '/users/' + uid); return j ? Object.assign({ _id: uid }, fsObj(j.fields)) : null; });
-function recRankQuery(field, desc) { return recGet('r:' + field, () => fsQuery({ from: [{ collectionId: 'users' }], orderBy: [{ field: { fieldPath: field }, direction: desc ? 'DESCENDING' : 'ASCENDING' }], limit: 10 })); }
+function recRankQuery(field, desc) { return recGet('r:' + field, () => fsQuery({ from: [{ collectionId: 'users' }], orderBy: [{ field: { fieldPath: field }, direction: desc ? 'DESCENDING' : 'ASCENDING' }], limit: 15 }).then((r) => r.filter((u) => !u.hide).slice(0, 10))); } // v8.9 관리자가 숨긴 사람은 빼고 10명
 async function recUsers(uids) { // 여러 명 한 번에 (친구 목록)
   if (!uids.length) return [];
   return recGet('f:' + uids.join(','), async () => {
@@ -11322,7 +11325,7 @@ async function recFriendAnswer(r, ok) {
   const P = REC.P;
   if (ok && !P.friends.includes(r.from)) { P.friends.push(r.from); REC.ver++; REC.dirty = true; recSaveLocal(); }
   const w = [ok ? { update: { name: FS_DOC('friendReq/' + r._id), fields: fsFields({ st: 'ok' }) }, updateMask: { fieldPaths: ['st'] } } : { delete: FS_DOC('friendReq/' + r._id) }];
-  if (ok) w.unshift({ update: { name: FS_DOC('users/' + REC.uid), fields: fsFields(Object.assign(P, { upd: Date.now() })) } });
+  if (ok) w.unshift(recUserWrite(REC.uid, Object.assign(P, { upd: Date.now() })));
   const ver = REC.ver;
   await fsCommit(w);
   if (ok && REC.ver === ver) { REC.dirty = false; recSaveLocal(); }
@@ -11352,7 +11355,7 @@ const hRow = (css, kids) => rH('div', 'display:flex;gap:6px;align-items:center;f
 const hBox = (kids, css = '') => rH('div', 'background:#141a33;border:1px solid #333c66;border-radius:12px;padding:10px 12px;margin-top:8px;text-align:left;' + css, null, kids);
 const hHead = (t) => rH('div', 'font-weight:bold;color:#ffd84d;font-size:14px;margin-bottom:6px', t);
 function hName(u, size = 15, click = true) { // 이모지 + 이름(색) + 칭호
-  const t = recTitleOf(u), n = rH('span', `font-weight:bold;font-size:${size}px;color:${recColor(u.color)};${click ? 'cursor:pointer;text-decoration:underline dotted' : ''}`, recEmoji(u.emoji) + ' ' + (u.name || '?'));
+  const t = recTitleOf(u), n = rH('span', `font-weight:bold;font-size:${size}px;color:${recColor(u.color)};${click ? 'cursor:pointer;text-decoration:underline dotted' : ''}`, recEmoji(u.emoji) + ' ' + recName(u));
   if (click && u._id) n.onclick = () => recShowProfile(u._id);
   const s = rH('span', '', null, [n]);
   if (t) s.appendChild(rH('span', `margin-left:6px;font-size:11px;padding:1px 6px;border-radius:8px;border:1px solid ${t[2]};color:${t[2]}`, t[1]));
@@ -11377,7 +11380,7 @@ function recClose() { REC.open = false; REC.view = null; window.AUTH_OPEN = fals
 { const baseK = authKey; authKey = function (e) { // 기록실이 떠 있으면 Esc = 뒤로/닫기
   if (e.code === 'Backspace' && !(e.target && e.target.tagName === 'INPUT')) { e.preventDefault(); e = { code: 'Escape', target: e.target, preventDefault() {} }; } // v8.3 백스페이스 = Esc (글자 칸 밖에서만)
   if (!REC.open) { baseK(e); return; }
-  if (e.code === 'Escape') { e.preventDefault(); if (REC.view) { REC.view = null; recDraw(); } else recClose(); }
+  if (e.code === 'Escape') { e.preventDefault(); if (REC.view) { REC.view = null; recDraw(); } else if (REC.tab === 'admin' && ADM.sel) { ADM.sel = null; ADM.confirm = ''; recDraw(); } else recClose(); }
 }; }
 const REC_TABS = [['me', '👤 내 정보'], ['rank', '🏆 랭킹'], ['friend', '🤝 친구'], ['cert', '📜 인증서'], ['deco', '🎖 칭호·꾸미기'], ['stat', '📊 이번 주 통계']];
 let recDrawN = 0;
@@ -11388,7 +11391,7 @@ function recDraw() {
   const top = hRow('justify-content:space-between;margin-bottom:8px', [rH('div', 'font-size:20px;font-weight:bold;color:#ffd84d', '📖 기록실'), hBtn('닫기 (Esc)', '#444a66', recClose)]);
   panel.appendChild(top);
   const tabs = hRow('justify-content:center;margin-bottom:6px');
-  REC_TABS.forEach(([k, t]) => tabs.appendChild(hBtn(t, REC.tab === k && !REC.view ? '#5aa8ff' : '#2b3358', () => { REC.tab = k; REC.view = null; REC.openCert = -1; recDraw(); }, 'font-size:12px;padding:6px 9px')));
+  recTabs().forEach(([k, t]) => tabs.appendChild(hBtn(t, REC.tab === k && !REC.view ? '#5aa8ff' : '#2b3358', () => { REC.tab = k; REC.view = null; REC.openCert = -1; recDraw(); }, 'font-size:12px;padding:6px 9px')));
   panel.appendChild(tabs);
   const status = rH('div', 'font-size:12px;min-height:16px;color:#ff8a80;white-space:pre-line');
   if (REC.msg) status.textContent = '⚠️ ' + REC.msg;
@@ -11401,7 +11404,8 @@ function recDraw() {
   if (REC.view) { recDrawProfile(body, REC.view, load); return; }
   const needLogin = ['me', 'friend', 'cert', 'deco'].includes(REC.tab) && !REC.P;
   if (needLogin) { say('로그인하면 볼 수 있어!\n(게스트는 랭킹·통계만 구경 가능)'); body.appendChild(hBtn('로그인하러 가기', '#5aa8ff', () => { recClose(); authOpen(); })); return; }
-  ({ me: recDrawMe, rank: recDrawRank, friend: recDrawFriend, cert: recDrawCert, deco: recDrawDeco, stat: recDrawStat })[REC.tab](body, load, say);
+  if (REC.tab === 'admin' && !recIsAdmin()) REC.tab = 'me';
+  ({ me: recDrawMe, rank: recDrawRank, friend: recDrawFriend, cert: recDrawCert, deco: recDrawDeco, stat: recDrawStat, admin: recDrawAdmin })[REC.tab](body, load, say);
 }
 function recStatGrid(items) { // [[이름, 값], ...] 작은 칸들
   const g = rH('div', 'display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px');
@@ -11551,6 +11555,149 @@ function recDrawProfile(body, uid, load) {
   });
 }
 
+// =====================================================================
+// ===== 관리자 메뉴 (v8.9) — 개발자 계정으로 로그인했을 때만 기록실에 '🛠 관리' 탭 =====
+// 진짜 권한은 Firestore 보안 규칙이 지킴 (규칙에 이 uid가 들어가 있어야 함, HANDOFF §19). 여기 uid는 탭을 보여 줄지만 정함
+// 관리자만 쓰는 칸 (ADM_KEYS): nick = 관리자가 정한 닉네임 · hide = 랭킹에서 숨김 · rst = 기록 초기화한 시각
+//   → 본인 게임은 이 칸을 절대 안 건드림(updateMask에서 뺌) + 규칙도 본인이 못 바꾸게 막음
+// 할 수 있는 것: 계정 목록 · 아이디로 찾기 · 닉네임 바꾸기 · 랭킹 숨기기/보이기 · 기록 초기화 · 친구 신청 정리
+// 못 하는 것 (무료 Spark에선 불가): 비밀번호 바꾸기 · 계정 삭제/정지 → Firebase 콘솔 Authentication에서
+// =====================================================================
+const ADMIN_UID = 'RMfEisQub8awrpYAWFry5LAbMLd2'; // 사용자 본인 '개발자' (아이디 fewwarrior)
+const ADM_KEYS = ['nick', 'hide', 'rst'];
+const recIsAdmin = () => !!(AUTH.user && AUTH.user.uid === ADMIN_UID && FB_ON());
+const recTabs = () => (recIsAdmin() ? REC_TABS.concat([['admin', '🛠 관리']]) : REC_TABS);
+function recName(u) { return (u && (u.nick || u.name)) || '?'; } // 관리자가 바꾼 닉네임이 먼저
+// 기록 문서 쓰기 (본인 것): 관리자 칸은 빼고, 보낸 칸만 바꿈 (안 보낸 관리자 칸은 서버에 그대로 남음)
+function recUserWrite(uid, P) {
+  const o = {}; for (const k in P) if (!ADM_KEYS.includes(k) && k !== '_id' && P[k] !== undefined) o[k] = P[k];
+  const fields = fsFields(o);
+  return { update: { name: FS_DOC('users/' + uid), fields }, updateMask: { fieldPaths: Object.keys(fields) } };
+}
+function recApplyNick() { // 관리자가 내 닉네임을 바꿨으면 내 계정 이름도 맞춤
+  const n = REC.P && REC.P.nick;
+  if (!n || !AUTH.user || AUTH.user.name === n) return;
+  AUTH.user.name = n; authSave(); setMyName(n);
+  recToast(`🛠 관리자가 닉네임을 '${n}'(으)로 바꿨어`, '#ffd84d');
+}
+async function recAdminPull() { // 올리기 전 확인: 관리자가 바꾼 게 있나. 초기화됐으면 true (내 옛 기록은 버림)
+  const j = await fsReq('GET', '/users/' + REC.uid, null, true);
+  if (!j || !REC.P) return false;
+  const S = fsObj(j.fields);
+  if ((S.rst || 0) > (REC.P.rst || 0)) {
+    REC.P = Object.assign(recNew(AUTH.user), S); REC.dirty = false; REC.ver++;
+    recApplyNick(); recSaveLocal();
+    recToast('🛠 관리자가 내 기록을 초기화했어', '#ffd84d');
+    return true;
+  }
+  ADM_KEYS.forEach((k) => { if (S[k] === undefined) delete REC.P[k]; else REC.P[k] = S[k]; });
+  recApplyNick();
+  return false;
+}
+// 관리자가 남의 문서 바꾸기: 보낸 칸만 바꾸고, 값이 undefined인 칸은 지움
+async function admWrite(uid, patch) {
+  const o = {}; for (const k in patch) if (patch[k] !== undefined) o[k] = patch[k];
+  await fsCommit([{ update: { name: FS_DOC('users/' + uid), fields: fsFields(o) }, updateMask: { fieldPaths: Object.keys(patch) } }]);
+  for (const k in REC.cache) if (k.startsWith('r:') || k.startsWith('f:') || k === 'u:' + uid || k.startsWith('adm')) delete REC.cache[k];
+  TICK.t = 0; // 메인 화면 랭킹 판도 새로
+  if (uid === REC.uid) { REC.dirty = false; await recSync(); } // 나 자신을 바꿨으면 내 기록도 다시 받기
+}
+// 기록 초기화할 때 지우는 칸 (닉네임·아이디·꾸미기·친구는 남김)
+const ADM_RESET_ZERO = ['games', 'wins', 'losses', 'streak', 'bestStreak', 'onW', 'onL', 'onStreak', 'onBest', 'rpBest', 'bossRuns'];
+function admResetPatch() {
+  const p = { chars: {}, certs: [], hist: [], title: '', goat: undefined, rp: undefined, rst: Date.now(), upd: Date.now() };
+  ADM_RESET_ZERO.forEach((k) => { p[k] = 0; });
+  for (let d = 0; d < 4; d++) ['b', 'r', 'bc', 'f', 'fc'].forEach((f) => { p[f + d] = undefined; });
+  return p;
+}
+const ADM = { sel: null, confirm: '', list: 'recent' };
+const admWhen = (t) => { if (!t) return '-'; const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+function recDrawAdmin(body, load) {
+  body.appendChild(rH('div', 'font-size:12px;color:#ffb36b;margin:4px 0', '🛠 관리자 전용 · 여기서 바꾼 건 바로 서버에 저장돼'));
+  if (ADM.sel) { admDrawUser(body, load); return; }
+  // 아이디로 찾기
+  const inp = rH('input', 'flex:1;min-width:120px;padding:8px;font-size:14px;border-radius:9px;border:2px solid #556;background:#0e1226;color:#fff');
+  inp.placeholder = '아이디로 찾기'; inp.maxLength = 12; inp.autocapitalize = 'off';
+  const fmsg = rH('div', 'font-size:12px;min-height:16px;margin-top:4px;color:#ff8a80');
+  const go = () => { fmsg.style.color = '#99a'; fmsg.textContent = '찾는 중...'; recFindId(inp.value).then((u) => { ADM.sel = u._id; ADM.confirm = ''; recDraw(); }).catch((err) => { fmsg.style.color = '#ff8a80'; fmsg.textContent = err.message; }); };
+  inp.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); go(); } };
+  body.appendChild(hBox([hHead('🔍 계정 찾기'), hRow('', [inp, hBtn('찾기', '#5aa8ff', go)]), fmsg]));
+  // 아래 목록 고르기
+  body.appendChild(hRow('justify-content:center;margin-top:8px', [['recent', '👥 계정 목록'], ['hidden', '🙈 숨긴 사람'], ['req', '📨 친구 신청 정리']].map(([k, t]) => hBtn(t, ADM.list === k ? '#ff8a3d' : '#2b3358', () => { ADM.list = k; recDraw(); }, 'font-size:12px'))));
+  if (ADM.list === 'req') { admDrawReqs(body, load); return; }
+  const q = ADM.list === 'hidden'
+    ? recGet('adm:hidden', () => fsQuery({ from: [{ collectionId: 'users' }], where: fsEq('hide', true), limit: 50 }))
+    : recGet('adm:recent', () => fsQuery({ from: [{ collectionId: 'users' }], orderBy: [{ field: { fieldPath: 'upd' }, direction: 'DESCENDING' }], limit: 50 }));
+  load(q, (rows) => {
+    if (!rows.length) { body.appendChild(rH('div', 'margin:18px 0;color:#99a', ADM.list === 'hidden' ? '숨긴 사람 없음' : '아직 계정이 없어')); return; }
+    const box = hBox([hHead(ADM.list === 'hidden' ? `🙈 랭킹에서 숨긴 사람 ${rows.length}명` : `👥 최근에 접속한 순서 ${rows.length}명 (최대 50)`)]);
+    rows.forEach((u) => {
+      const row = hRow('padding:5px 2px;border-bottom:1px solid #2a3155;cursor:pointer', [
+        hName(u, 14, false), rH('span', 'font-size:11px;color:#99a', u.id || '?'),
+        u.hide ? rH('span', 'font-size:11px;color:#ff8a80', '🙈숨김') : null,
+        rH('span', 'margin-left:auto;font-size:12px;color:#cfd6ff', `${u.wins || 0}승 ${u.losses || 0}패 · ${admWhen(u.upd)}`)]);
+      row.onclick = () => { ADM.sel = u._id; ADM.confirm = ''; recDraw(); };
+      box.appendChild(row);
+    });
+    body.appendChild(box);
+    body.appendChild(rH('div', 'font-size:11px;color:#99a;margin-top:6px', '누르면 관리 화면 · 가입만 하고 게임을 한 번도 안 켠 계정은 안 보여 (계정 자체 삭제는 Firebase 콘솔 → Authentication)'));
+  });
+}
+function admDrawUser(body, load) {
+  const uid = ADM.sel;
+  body.appendChild(hRow('', [hBtn('← 목록으로', '#444a66', () => { ADM.sel = null; ADM.confirm = ''; recDraw(); })]));
+  load(recUser(uid), (u) => {
+    if (!u) { body.appendChild(rH('div', 'margin:18px 0;color:#99a', '문서를 못 찾았어')); return; }
+    const msg = rH('div', 'font-size:13px;min-height:18px;margin-top:6px;white-space:pre-line');
+    const run = (label, patch, done) => { msg.style.color = '#99a'; msg.textContent = label + ' 중...';
+      admWrite(uid, patch).then(() => { recToast('🛠 ' + done, '#7dff9a'); ADM.confirm = ''; recDraw(); })
+        .catch((err) => { msg.style.color = '#ff8a80'; msg.textContent = err.message + (/권한/.test(err.message) ? '\n→ Firebase 콘솔 규칙에 관리자 규칙을 붙여 넣었는지 확인해 줘' : ''); }); };
+    body.appendChild(hBox([hRow('', [hName(u, 18, false), u.hide ? rH('span', 'font-size:12px;color:#ff8a80', '🙈 랭킹 숨김') : null]),
+      rH('div', 'font-size:12px;color:#99a;margin-top:3px', `아이디 ${u.id || '?'} · 계정 이름 ${u.name || '?'}${u.nick ? ' → 관리자 닉네임 ' + u.nick : ''} · 마지막 저장 ${admWhen(u.upd)}${u.rst ? ' · 초기화 ' + admWhen(u.rst) : ''}`),
+      rH('div', 'font-size:12px;color:#cfd6ff;margin-top:3px', `${u.games || 0}판 ${u.wins || 0}승 ${u.losses || 0}패 · 온라인 ${u.onW || 0}승 ${u.onL || 0}패 · 랭크 ${u.rp || 0}점 · 보스전 ${u.bossRuns || 0}판 · 친구 ${(u.friends || []).length}명`)]));
+    // 1) 닉네임
+    const nk = rH('input', 'flex:1;min-width:110px;padding:8px;font-size:14px;border-radius:9px;border:2px solid #556;background:#0e1226;color:#fff');
+    nk.maxLength = 8; nk.placeholder = '새 닉네임 (8자)'; nk.value = recName(u);
+    const doNick = () => { const v = netClean(nk.value, 8); if (!v) { msg.style.color = '#ff8a80'; msg.textContent = '닉네임을 써 줘!'; return; } run('닉네임 바꾸는', { nick: v, name: v }, `닉네임을 '${v}'(으)로 바꿨어`); };
+    nk.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); doNick(); } };
+    body.appendChild(hBox([hHead('✏️ 닉네임 바꾸기'), hRow('', [nk, hBtn('바꾸기', '#5aa8ff', doNick)]),
+      rH('div', 'font-size:11px;color:#99a;margin-top:4px', '그 사람 게임에도 다음에 기록실을 열거나 경기가 끝날 때 바뀐 이름이 들어가')]));
+    // 2) 랭킹 숨기기
+    body.appendChild(hBox([hHead('🙈 랭킹에서 숨기기'), hRow('', [
+      u.hide ? hBtn('다시 보이게 하기', '#2fbf71', () => run('보이게 하는', { hide: undefined }, '랭킹에 다시 보여')) : hBtn('랭킹에서 숨기기', '#c2185b', () => run('숨기는', { hide: true }, '랭킹에서 숨겼어')),
+      rH('span', 'font-size:11px;color:#99a', '기록은 그대로, 랭킹·메인 화면 1위 판에만 안 나옴')])]));
+    // 3) 기록 초기화 (두 번 눌러야 됨)
+    const sure = ADM.confirm === 'reset:' + uid;
+    body.appendChild(hBox([hHead('🧹 기록 초기화'), hRow('', [
+      hBtn(sure ? '⚠️ 정말? 한 번 더 누르면 초기화' : '기록 초기화', sure ? '#ff3b3b' : '#8a2f2f', () => { if (!sure) { ADM.confirm = 'reset:' + uid; recDraw(); return; } run('초기화하는', admResetPatch(), '기록을 초기화했어'); }),
+      sure ? hBtn('취소', '#666c88', () => { ADM.confirm = ''; recDraw(); }) : null]),
+      rH('div', 'font-size:11px;color:#99a;margin-top:4px', '전적·랭크 점수·보스 기록·인증서·최근 경기를 0으로. 닉네임·꾸미기·친구는 남음. 되돌릴 수 없어!')]));
+    body.appendChild(msg);
+    body.appendChild(rH('div', 'font-size:11px;color:#99a;margin-top:8px', '비밀번호 바꾸기·계정 삭제/정지는 무료 서버에선 못 해 → Firebase 콘솔 → Authentication에서'));
+  });
+}
+function admDrawReqs(body, load) {
+  load(recGet('adm:req', () => fsQuery({ from: [{ collectionId: 'friendReq' }], limit: 100 }, true)), (rows) => {
+    if (!rows.length) { body.appendChild(rH('div', 'margin:18px 0;color:#99a', '남아 있는 친구 신청 없음 ✨')); return; }
+    rows.sort((a, b) => (a.t || 0) - (b.t || 0));
+    const msg = rH('div', 'font-size:13px;min-height:18px;margin-top:6px');
+    const del = (list, done) => { msg.style.color = '#99a'; msg.textContent = '지우는 중...';
+      fsCommit(list.map((r) => ({ delete: FS_DOC('friendReq/' + r._id) }))).then(() => { delete REC.cache['adm:req']; recToast('🛠 ' + done, '#7dff9a'); recDraw(); })
+        .catch((err) => { msg.style.color = '#ff8a80'; msg.textContent = err.message; }); };
+    const old = rows.filter((r) => Date.now() - (r.t || 0) > 7 * 864e5);
+    const box = hBox([hHead(`📨 서버에 남은 친구 신청 ${rows.length}개${rows.length >= 100 ? ' (100개까지만 보임)' : ''}`)]);
+    rows.forEach((r) => box.appendChild(hRow('padding:4px 2px;border-bottom:1px solid #2a3155;font-size:13px', [
+      rH('span', '', `${r.fromName || '?'}(${r.fromId || '?'}) → ${r.toName || '?'}`),
+      rH('span', `font-size:11px;color:${r.st === 'ok' ? '#7dff9a' : '#ffd84d'}`, r.st === 'ok' ? '수락됨' : '대기'),
+      rH('span', 'margin-left:auto;font-size:11px;color:#99a', admWhen(r.t)),
+      hBtn('지우기', '#666c88', () => del([r], '친구 신청 1개 지웠어'), 'font-size:11px;padding:3px 8px')])));
+    body.appendChild(hRow('justify-content:center;margin-top:8px', [
+      hBtn(`7일 넘은 것 지우기 (${old.length}개)`, old.length ? '#c2185b' : '#444a66', () => { if (old.length) del(old.slice(0, 400), `오래된 친구 신청 ${Math.min(old.length, 400)}개 지웠어`); })]));
+    body.appendChild(box); body.appendChild(msg);
+    body.appendChild(rH('div', 'font-size:11px;color:#99a;margin-top:6px', '"수락됨"은 보낸 사람이 기록실을 열면 원래 자동으로 지워져. 대기 중인 걸 지우면 신청이 취소돼'));
+  });
+}
+
 // 경기 끝 알림 (화면 위쪽 가운데, 3.8초) — 그리기만 하니까 온라인 동기화에 영향 없음
 { const baseD = draw; draw = function () {
   baseD();
@@ -11573,7 +11720,7 @@ function recDrawProfile(body, uid, load) {
 if (AUTH.user && FB_ON()) { recLoadLocal(); setTimeout(recSync, 2500); } // 게임 켤 때 (자동 로그인)
 
 // ===== (v8.3) 메인 화면 오른쪽 랭킹 판 — 1위들이 4초마다 돌아가며 보임 + '랭킹 보기' 버튼 =====
-// 서버 아끼기: 1위 1명만 불러오는 질문(limit 1) 7개, 5분에 한 번만 새로 불러옴 (한 번에 읽기 7번)
+// 서버 아끼기: 1위만 보려고 2명씩 불러오는 질문(limit 2, v8.9 숨긴 사람 빼려고) 7개, 5분에 한 번만 새로 불러옴 (한 번에 읽기 최대 14번)
 const TICK_CARDS = [ // [이름, 정렬할 칸, 큰 값부터?, 값 보여 주기]
   ['👹 보스전 고트 1위', 'b3', true, (u) => `${fmtN(u.b3)}점 · ${u.r3}`], ['👹 보스전 헬 1위', 'b2', true, (u) => `${fmtN(u.b2)}점 · ${u.r2}`],
   ['👹 보스전 하드 1위', 'b1', true, (u) => `${fmtN(u.b1)}점 · ${u.r1}`], ['👹 보스전 노멀 1위', 'b0', true, (u) => `${fmtN(u.b0)}점 · ${u.r0}`],
@@ -11588,8 +11735,8 @@ async function tickLoad() {
   if (document.hidden || Date.now() - TICK.act > TICK_IDLE) return; // 방치 중
   TICK.loading = true;
   try {
-    const out = await Promise.all(TICK_CARDS.map(([name, f, desc, fmt]) => fsQuery({ from: [{ collectionId: 'users' }], orderBy: [{ field: { fieldPath: f }, direction: desc ? 'DESCENDING' : 'ASCENDING' }], limit: 1 })
-      .then((r) => { const u = r[0]; if (!u || (f === 'wins' && !u.wins) || (f === 'rp' && !((u.onW || 0) + (u.onL || 0)))) return null; return { name, u, val: fmt(u) }; })));
+    const out = await Promise.all(TICK_CARDS.map(([name, f, desc, fmt]) => fsQuery({ from: [{ collectionId: 'users' }], orderBy: [{ field: { fieldPath: f }, direction: desc ? 'DESCENDING' : 'ASCENDING' }], limit: 2 })
+      .then((r) => { const u = r.find((q) => !q.hide); /* v8.9 숨긴 사람 빼기 */ if (!u || (f === 'wins' && !u.wins) || (f === 'rp' && !((u.onW || 0) + (u.onL || 0)))) return null; return { name, u, val: fmt(u) }; })));
     TICK.rows = out.filter(Boolean); TICK.err = '';
   } catch (err) { TICK.err = err.message; }
   TICK.t = Date.now(); TICK.loading = false;
@@ -11610,7 +11757,7 @@ function drawTicker() {
     ctx.globalAlpha = Math.min(1, ph * 8, (1 - ph) * 8); // 넘어갈 때 살짝 사라졌다 나타남
     const slide = (1 - Math.min(1, ph * 6)) * 10;
     text(r.name, cx + slide, y + 30, 8, '#cfd8ea');
-    let nm = (r.u.name || '?'); if (nm.length > 7) nm = nm.slice(0, 7) + '…';
+    let nm = recName(r.u); if (nm.length > 7) nm = nm.slice(0, 7) + '…';
     text(recEmoji(r.u.emoji) + ' ' + nm, cx + slide, y + 49, 13, recColor(r.u.color));
     const t = recTitleOf(r.u); if (t) text(t[1], cx + slide, y + 63, 7, t[2]);
     text(r.val, cx + slide, y + 76, 9, '#ffd84d');

@@ -1,4 +1,4 @@
-# HANDOFF — 동성 배구 대전 (v7.2 기준, v8.8까지 기록 · 새 채팅 인수인계 완전판)
+# HANDOFF — 동성 배구 대전 (v7.2 기준, v8.9까지 기록 · 새 채팅 인수인계 완전판)
 
 > **새 채팅의 Claude에게**
 > 이 문서를 처음부터 끝까지 다 읽고 작업을 이어 가 줘. 특히 **§1 작업 규칙**은 사용자가 직접 정한 거라 꼭 지켜야 해.
@@ -19,7 +19,7 @@
 - 코드는 전부 `game.js` 한 파일(약 8,000줄). 실행은 `index.html`
 - 캐릭터는 사용자 친구들의 **실제 사진**(배경만 지운 원본 사진)
   - 등급 + 시네마틱 스킬 + 전용 대사가 있음
-- 현재 버전: **v8.8** (피직스 축구 soccer.js **v0.2.2**)
+- 현재 버전: **v8.9** (관리자 메뉴) (피직스 축구 soccer.js **v0.2.2**)
 - **v8.2 기록실** (로그인하면 전적·랭킹·친구·인증서·칭호·주간 통계, §19) — Firebase 값 받으면 바로 켜짐
 
 ---
@@ -705,8 +705,17 @@ python3 tools/build_preview.py "출력경로/volleyball-preview.html"
   - **이소정 버전마다 다른 사진**: v1 = assets/lsj.png(새우 인형 안은 사진), v2 = lsj2.png(기차 창문 브이), v3·v4 = lsj3.png(얼굴+손). 세 장 다 0.85 비율 캔버스에 아래 가운데 정렬. drawPlayer 감싸기에서 imgs['char'+번호]를 잠깐 바꿔 그림 (컷인은 v1 사진)
 - v8.8 **진짜 Firebase 연결**: 프로젝트 `dongsung-volleyball` (Spark 무료, Authentication 이메일/비밀번호 켬, Firestore Standard · asia-northeast3 서울 · 프로덕션 모드 + §19 보안 규칙 게시). game.js `FB = { apiKey: 'AIzaSyD1PVOBH0W-8aMf1C7AhBu6z3qjdA5Gma4', projectId: 'dongsung-volleyball' }` (apiKey는 공개돼도 되는 값). 클라우드 셸은 googleapis가 막혀서 **노트북 내장 브라우저(example.org 페이지에서 fetch)로 진짜 서버 확인**: 가입·로그인 200, 내 문서 쓰기+통계 increment 200, **남의 문서 쓰기 403 · 로그인 없이 쓰기 403**(규칙 정상), 게스트 랭킹 읽기 200, 친구 신청 만들기·조회 200. 테스트 계정·문서는 다 지움(users 0개)
 
+- v8.9 **관리자 메뉴** (사용자 요청): 개발자 계정(uid `RMfEisQub8awrpYAWFry5LAbMLd2`, `ADMIN_UID`)으로 로그인하면 기록실에 '🛠 관리' 탭. 계정 목록(최근 저장 순 50명) · 아이디로 찾기 · 숨긴 사람 목록 · **닉네임 바꾸기 · 랭킹 숨기기/보이기 · 기록 초기화(두 번 눌러야) · 친구 신청 정리(하나씩 / 7일 넘은 것 한 번에)**. game.js '관리자 메뉴 (v8.9)' 구역(경기 끝 알림 바로 위)
+  - 관리자만 쓰는 칸 `ADM_KEYS` = `nick`(관리자 닉네임, 표시는 `recName(u)` = nick || name) · `hide`(랭킹 숨김) · `rst`(초기화 시각). **본인 게임은 이 칸을 안 건드림**: 내 기록 쓰기는 전부 `recUserWrite`(updateMask로 보낸 칸만 바꿈, 관리자 칸 뺌) — recFlush·recFriendAnswer
+  - **옛 기록 덮어쓰기 방지**: recFlush가 올리기 전에 내 문서를 한 번 읽음(`recAdminPull`, 읽기 +1) → 서버 `rst`가 내 것보다 새로우면 내 옛 기록 버리고 서버 것 받음 + '관리자가 초기화했어' 알림. 닉네임도 `recApplyNick`으로 내 계정 이름(dsvb_auth·온라인 이름)에 맞춤
+  - 랭킹: recRankQuery limit 15 → 숨긴 사람 빼고 10명, 메인 랭킹 판 limit 1 → 2 (숨긴 사람 건너뜀, 5분에 읽기 최대 14번)
+  - Esc: 관리 화면에서 사람 고른 상태면 목록으로
+  - **보안 규칙 바뀜 (§19)** → 사용자가 Firebase 콘솔 → Firestore → 규칙에 다시 붙여 넣고 '게시'해야 관리 기능이 됨 (안 하면 '서버 권한' 에러)
+  - 테스트: 가짜 Firebase(Playwright route, 새 규칙 흉내)로 20개 확인 — 일반 학생은 탭 안 보임·자기 hide 못 씀, 관리자 닉네임·숨김(랭킹·랭킹 판에서 빠짐)·초기화(두 번)·다시 보이기, 초기화 뒤 학생 옛 기록이 안 덮어씀 + 이름 바뀜, 친구 신청 지우기, 375px 안 넘침. 진짜 서버는 규칙 게시 후 노트북 브라우저로 확인 필요
+  - 여전히 못 하는 것: 비밀번호 재설정·계정 삭제/정지 (Blaze 필요) → Firebase 콘솔 Authentication
+
 ## 13. 남은 일 / 대기 중
-- **★★ 다음 할 일 (2026-11-07 사용자 요청, 채팅이 무거워서 새 채팅으로 넘김): 게임 안 관리자 메뉴**
+- ~~게임 안 관리자 메뉴~~ → **v8.9에서 만듦** (§12). 남은 것: 사용자가 §19 새 규칙 게시 + 진짜 서버에서 확인. 옛 메모:
   - 사용자 본인 계정('개발자', 아이디 `fewwarrior`, uid `RMfEisQub8awrpYAWFry5LAbMLd2`)으로 로그인했을 때만 기록실에 '🛠 관리' 탭이 보이게
   - 할 수 있게 할 것(제안했던 것): 아무 사람 닉네임 바꾸기 · 기록 초기화 · 랭킹에서 빼기(숨김) · 친구 신청 정리 · (가능하면) 계정 목록 보기
   - **Firestore 보안 규칙에 관리자 uid 추가 필요** (예: users 쓰기 `request.auth.uid == uid || request.auth.uid == '관리자uid'`) → 사용자가 콘솔 규칙 탭에 다시 붙여 넣어야 함. 규칙 바꾸면 §19 규칙도 같이 고치기
@@ -935,14 +944,19 @@ python3 tools/build_preview.py "출력경로/volleyball-preview.html"
 - 경기 끝 알림 `recToast` (draw 감싸기, 화면 위 가운데 3.8초, 그리기만)
 - 메뉴 왼쪽 아래: '🔥 닉네임 · L 계정 · K 기록실' (이모지·색 반영). 기록실 떠 있으면 `window.AUTH_OPEN` 그대로 써서 게임 키 막음, Esc = 프로필에서 뒤로 / 닫기 (`authKey` 감싸기)
 - 테스트: Playwright `context.route(/googleapis/)`로 가짜 Auth+Firestore 만들어서 2명 가입 → 경기 → 랭킹 → 프로필 → 친구 신청·수락 → 오프라인 저장 → 다시 올리기 확인 (스크립트는 클라우드 scratchpad에만 있었음)
-- **Firestore 보안 규칙** (Firebase 콘솔 → Firestore → 규칙에 그대로 붙여 넣기):
+- **Firestore 보안 규칙 (v8.9 관리자 규칙 포함)** (Firebase 콘솔 → Firestore → 규칙에 그대로 붙여 넣기):
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAdmin() { return request.auth != null && request.auth.uid == 'RMfEisQub8awrpYAWFry5LAbMLd2'; }
     match /users/{uid} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow create: if isAdmin() || (request.auth != null && request.auth.uid == uid
+                    && !request.resource.data.keys().hasAny(['nick', 'hide', 'rst']));
+      allow update: if isAdmin() || (request.auth != null && request.auth.uid == uid
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['nick', 'hide', 'rst']));
+      allow delete: if isAdmin();
     }
     match /stats/{week} {
       allow read: if true;
@@ -951,9 +965,9 @@ service cloud.firestore {
     match /friendReq/{rid} {
       allow create: if request.auth != null && request.resource.data.from == request.auth.uid
                     && rid == request.auth.uid + '_' + request.resource.data.to;
-      allow read: if request.auth != null && (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid);
+      allow read: if isAdmin() || (request.auth != null && (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid));
       allow update: if request.auth != null && resource.data.to == request.auth.uid;
-      allow delete: if request.auth != null && (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid);
+      allow delete: if isAdmin() || (request.auth != null && (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid));
     }
   }
 }
