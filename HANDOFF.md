@@ -706,6 +706,12 @@ python3 tools/build_preview.py "출력경로/volleyball-preview.html"
 - v8.8 **진짜 Firebase 연결**: 프로젝트 `dongsung-volleyball` (Spark 무료, Authentication 이메일/비밀번호 켬, Firestore Standard · asia-northeast3 서울 · 프로덕션 모드 + §19 보안 규칙 게시). game.js `FB = { apiKey: 'AIzaSyD1PVOBH0W-8aMf1C7AhBu6z3qjdA5Gma4', projectId: 'dongsung-volleyball' }` (apiKey는 공개돼도 되는 값). 클라우드 셸은 googleapis가 막혀서 **노트북 내장 브라우저(example.org 페이지에서 fetch)로 진짜 서버 확인**: 가입·로그인 200, 내 문서 쓰기+통계 increment 200, **남의 문서 쓰기 403 · 로그인 없이 쓰기 403**(규칙 정상), 게스트 랭킹 읽기 200, 친구 신청 만들기·조회 200. 테스트 계정·문서는 다 지움(users 0개)
 
 ## 13. 남은 일 / 대기 중
+- **★★ 다음 할 일 (2026-11-07 사용자 요청, 채팅이 무거워서 새 채팅으로 넘김): 게임 안 관리자 메뉴**
+  - 사용자 본인 계정('개발자', 아이디 `fewwarrior`, uid `RMfEisQub8awrpYAWFry5LAbMLd2`)으로 로그인했을 때만 기록실에 '🛠 관리' 탭이 보이게
+  - 할 수 있게 할 것(제안했던 것): 아무 사람 닉네임 바꾸기 · 기록 초기화 · 랭킹에서 빼기(숨김) · 친구 신청 정리 · (가능하면) 계정 목록 보기
+  - **Firestore 보안 규칙에 관리자 uid 추가 필요** (예: users 쓰기 `request.auth.uid == uid || request.auth.uid == '관리자uid'`) → 사용자가 콘솔 규칙 탭에 다시 붙여 넣어야 함. 규칙 바꾸면 §19 규칙도 같이 고치기
+  - 비밀번호 재설정은 서버 프로그램(Blaze 유료)이 필요해서 무료로는 불가 → '계정 지우고 다시 가입'뿐이라고 이미 설명함. 계정 삭제·정지는 Firebase 콘솔 Authentication에서만 가능 (클라이언트에선 남의 계정 못 지움)
+  - 테스트: 클라우드 셸은 googleapis 막힘 → **노트북 내장 브라우저**로 새 주소 페이지에서 JS fetch로 확인 (이번 채팅 방식)
 - ~~사이트 옮기기~~ → **2026-11-07 완료**: GitHub 조직 `dongsung-volleyball` 만들고 저장소를 Transfer + 이름 변경 → **새 저장소 `github.com/dongsung-volleyball/dongsung-volleyball.github.io`, 새 주소 `https://dongsung-volleyball.github.io`** (원래 개인 사이트 `fewwarrior11045.github.io`는 애드센스 심사 중이라 게임을 뺌). Pages: main / root. 노트북 `.git/config`의 remote는 아직 옛 주소일 수 있음(Claude가 고치려다 안전장치에 막힘) — GitHub이 자동으로 넘겨줘서 Push는 됨, 사용자가 GitHub Desktop → Repository settings → Remote에서 바꿀 수 있음
   - 새 주소에서 진짜 화면으로 확인함: v8.8 열림, 가입 → 한 판 → 서버 저장(1승) → 메인 랭킹 판 표시까지 OK. 테스트 계정·문서는 지움 (그때 이번 주 통계 문서 stats/w2026-45도 지웠음 — 사용자 첫 판 1개도 같이 지워짐, 개인 전적은 그대로)
   - 서버에 있는 실제 계정: 사용자 본인 '개발자'(아이디 fewwarrior)
