@@ -706,7 +706,9 @@ python3 tools/build_preview.py "출력경로/volleyball-preview.html"
 - v8.8 **진짜 Firebase 연결**: 프로젝트 `dongsung-volleyball` (Spark 무료, Authentication 이메일/비밀번호 켬, Firestore Standard · asia-northeast3 서울 · 프로덕션 모드 + §19 보안 규칙 게시). game.js `FB = { apiKey: 'AIzaSyD1PVOBH0W-8aMf1C7AhBu6z3qjdA5Gma4', projectId: 'dongsung-volleyball' }` (apiKey는 공개돼도 되는 값). 클라우드 셸은 googleapis가 막혀서 **노트북 내장 브라우저(example.org 페이지에서 fetch)로 진짜 서버 확인**: 가입·로그인 200, 내 문서 쓰기+통계 increment 200, **남의 문서 쓰기 403 · 로그인 없이 쓰기 403**(규칙 정상), 게스트 랭킹 읽기 200, 친구 신청 만들기·조회 200. 테스트 계정·문서는 다 지움(users 0개)
 
 ## 13. 남은 일 / 대기 중
-- **★ 사이트 옮기기 (다음 할 일)**: 지금 주소 `fewwarrior11045.github.io/volleyball-game`은 사용자 개인 사이트 밑이라 **애드센스 심사 중인 원래 사이트에 붙어 있음** → 독립 주소 필요. 추천안: GitHub **조직(Organization, 무료)** 만들기 → volleyball-game 저장소 Transfer → 이름을 `조직이름.github.io`로 → Pages 켜기 → 노트북 `.git/config` remote 주소 바꾸기(Claude가). 대안: Cloudflare Pages / Netlify / Firebase 호스팅. 조직 이름 아직 안 정함. 옮기면 localStorage(자동 로그인 등)는 새 주소로 안 따라감 → 한 번 다시 로그인 (서버 기록은 그대로)
+- ~~사이트 옮기기~~ → **2026-11-07 완료**: GitHub 조직 `dongsung-volleyball` 만들고 저장소를 Transfer + 이름 변경 → **새 저장소 `github.com/dongsung-volleyball/dongsung-volleyball.github.io`, 새 주소 `https://dongsung-volleyball.github.io`** (원래 개인 사이트 `fewwarrior11045.github.io`는 애드센스 심사 중이라 게임을 뺌). Pages: main / root. 노트북 `.git/config`의 remote는 아직 옛 주소일 수 있음(Claude가 고치려다 안전장치에 막힘) — GitHub이 자동으로 넘겨줘서 Push는 됨, 사용자가 GitHub Desktop → Repository settings → Remote에서 바꿀 수 있음
+  - 새 주소에서 진짜 화면으로 확인함: v8.8 열림, 가입 → 한 판 → 서버 저장(1승) → 메인 랭킹 판 표시까지 OK. 테스트 계정·문서는 지움 (그때 이번 주 통계 문서 stats/w2026-45도 지웠음 — 사용자 첫 판 1개도 같이 지워짐, 개인 전적은 그대로)
+  - 서버에 있는 실제 계정: 사용자 본인 '개발자'(아이디 fewwarrior)
 - ~~Firebase 연결 대기~~ → **v8.8 연결 완료** (아래 §13 맨 위). 옛 메모: 기록실·랭킹 코드는 v8.2에서 다 만듦. 사용자가 Firebase 프로젝트 만들고(Authentication → 이메일/비밀번호 켜기, Firestore 서울, Spark 무료 — **Blaze 절대 X**) apiKey·projectId 주면 → game.js `FB`에 넣기 + Firestore **보안 규칙(§19)** 붙여 넣으라고 안내 → 진짜 로그인·기록·친구 확인
 - ~~사진 대기~~ → **v8.7에서 5명 다 진짜 사진** (강병국·주민하·손하윤·최재훈·이소정 v1/v2/v3) → 사용자가 사진 주면 §7 방법으로 교체
 - 피직스 축구: 스킬(몇 명씩), 원작 랜덤 변수(얼음 바닥·저중력·큰 공 등) — 사용자가 하자고 할 때
