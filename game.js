@@ -1,5 +1,5 @@
 // ===== 설정 (여기만 바꾸면 돼요) =====
-const GAME_VERSION = 'v8.6.1'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
+const GAME_VERSION = 'v8.7'; // 게임 버전 (시작 화면·메뉴 오른쪽 아래에 표시, 온라인 버전 확인에도 씀) — 버전 올릴 때 여기만 바꾸기
 const CONFIG = {
   WIN_SCORE: 15,          // 몇 점 내면 이기는지
   FPS: 25,                // 1초에 몇 번 움직이는지 (원작 보통 속도 25)
@@ -48,15 +48,15 @@ const CHARACTERS = [
     skillName: '도구리의 왕', desc: ['랜덤 시네마틱 3종! (트름·뎀프시롤·트랙터)', '센 공 5발·30연타 흑백 만화·대지진'] },
   { name: '지혜&하은', gender: 'f', grade: 'RARE', type: 'sprite', img: 'assets/tag.png', w: 44, h: 30, skill: 'tag', mana: 5,
     skillName: '초소형 태그 오버드라이브', desc: ['공격마다 교대: 💗지혜 강타 ↔ 💙하은 랜덤 포크볼', '패시브: 강스파이크 25% 흘려보냄 · 깍두기 리시브'] },
-  { name: '강병국', gender: 'm', grade: 'EPIC', type: 'sprite', img: 'assets/kbg.png', w: 34, h: 66, skill: 'bk',
+  { name: '강병국', gender: 'm', grade: 'EPIC', type: 'sprite', img: 'assets/kbg.png', w: 24, h: 76, skill: 'bk',
     skillName: '퐁퐁 & 롤리팝', desc: ['랜덤 2종: 퐁퐁 핑거스냅 · 멘헤라 롤리팝', '패시브: 가끔 바람 불면 종이처럼 둥둥'] },
-  { name: '주민하', gender: 'f', grade: 'RARE', type: 'sprite', img: 'assets/jmh.png', w: 34, h: 66, skill: 'jmh', mana: 5,
+  { name: '주민하', gender: 'f', grade: 'RARE', type: 'sprite', img: 'assets/jmh.png', w: 57, h: 54, skill: 'jmh', mana: 5,
     skillName: '진실 해제: 대왕 하마 폭주', desc: ['2초 변신! 상대 점수를 씹어 먹음', '0점 50% · -1점 40% · -2점 10% + 4초 공포'] },
-  { name: '손하윤', gender: 'm', grade: 'RARE', type: 'sprite', img: 'assets/shy.png', w: 34, h: 66, skill: 'shy', mana: 4,
+  { name: '손하윤', gender: 'm', grade: 'RARE', type: 'sprite', img: 'assets/shy.png', w: 52, h: 62, skill: 'shy', mana: 4,
     skillName: '오버헤드 대기 스탠스', desc: ['스킬 → 5초 대기 → 스파이크 = 핀볼 킥!', '벽 10번 튕긴 공이 상대 코트 랜덤으로'] },
-  { name: '최재훈', gender: 'm', grade: 'EPIC', type: 'sprite', img: 'assets/cjh.png', w: 36, h: 68, skill: 'cjh',
+  { name: '최재훈', gender: 'm', grade: 'EPIC', type: 'sprite', img: 'assets/cjh.png', w: 44, h: 75, skill: 'cjh',
     skillName: '턱압프레스 & 고무고무 턱', desc: ['랜덤 2종: 하늘에서 턱 낙하 · 5초 자동 턱 스파이크', '패시브: 얼굴 앞 강타를 턱으로 자동 리시브'] },
-  { name: '이소정', gender: 'f', grade: 'LEGENDARY', type: 'sprite', img: 'assets/lsj.png', w: 34, h: 66, skill: 'lsj',
+  { name: '이소정', gender: 'f', grade: 'LEGENDARY', type: 'sprite', img: 'assets/lsj.png', w: 54, h: 64, skill: 'lsj',
     skillName: '갓소정 & 버전 딥러닝', desc: ['v1.0(약함) → 업그레이드할수록 강해지고 멋있어짐', '5초 시네마틱 3종: 갓소정 · 버전업 · 이제 한계다'] },
 ];
 const NCHAR = CHARACTERS.length; // 고를 수 있는 캐릭터 수 (보스전 보스는 이 뒤에 붙음)
@@ -119,6 +119,7 @@ function loadImg(key, src) {
 for (const [k, src] of Object.entries(CONFIG.IMAGES)) loadImg(k, src);
 CHARACTERS.forEach((c, i) => { if (c.img) loadImg('char' + i, c.img); });
 /* 508호 엔딩 컷씬 전용 사진 (게임 캐릭터 사진과 따로) */
+loadImg('lsjV2', 'assets/lsj2.png'); loadImg('lsjV3', 'assets/lsj3.png'); /* 이소정 v2·v3(v4) 사진 */
 loadImg('tagJ', 'assets/jih.png'); loadImg('tagH', 'assets/hae.png'); /* 지혜&하은: 따로 그림 */
 loadImg('cineKdh', 'assets/cine_kdh.png'); loadImg('cineYean', 'assets/cine_yean.png'); loadImg('cineYeanFace', 'assets/cine_yean_face.png');
 
@@ -3335,7 +3336,7 @@ function drawKdhPost() { // 영역전개 6초: 화면 전체 흑백 네거티브
 // 턱은 사진의 '턱 줄'(CJ_FACE)을 경로를 따라 늘려 붙여서 그림 (몸을 그림으로 그리지 않음). 진짜 사진 받으면 CJ_FACE 숫자만 맞추기
 // v8.4.1 턱압프레스: 천천히 내려옴(DROP~HOVER) → 공중에서 힘 모음(HOVER~DIVE) → 순식간에 꽝!! (HIT) → 2.2초 뒤 복귀, 전체 3.2초(PFIRE 80)
 const CJ = { UP: 14, DROP: 22, HOVER: 46, DIVE: 51, HIT: 54, BACK: 68, PFIRE: 80, FIRE: 50, N: 14, SQ: 75, GOMU: 125, STALL: 75, WARN: 38, AUTO_N: 8, AUTO_CD: 12, PEN: 25, SLAM: 17 };
-const CJ_FACE = { cx: 0.5, cy: 0.225, hw: 0.1, sh: 0.04 }; // 사진 안 턱 위치 (0~1): 가운데 x, 턱 끝 y, 턱 반폭, 늘릴 줄 두께 (지금은 임시 '?' 그림 기준)
+const CJ_FACE = { cx: 0.415, cy: 0.96, hw: 0.14, sh: 0.06 }; // 사진 안 턱 위치 (0~1): 가운데 x, 턱 끝 y, 턱 반폭, 늘릴 줄 두께 (v8.7 진짜 사진: 턱을 3배로 늘려 둔 cjh.png 기준, 맨 아래가 턱 끝)
 const CJ_SKILLS = [
   { key: 'press', title: '턱압프레스', en: 'Chin Press — Vertical Squash', col: '255,110,170', line: '"하늘에서 내 턱이 내려온다-!!"', fire: 80 },
   { key: 'gomu', title: '고무고무 턱', en: 'Gomu-Gomu Chin — Auto Strike', col: '255,90,200', line: '"늘어나라, 고무고무-!! 턱-!!"' },
@@ -11635,7 +11636,7 @@ const isCj = (p) => !!(p && CHARACTERS[p.char] && CHARACTERS[p.char].skill === '
     if (!isCj(p) || p.chinSaved || p.gomuT > 0 || p.state === LYING || p.state === WIN || p.state === LOSE || p.freezeT > 0) continue;
     const s = cjSide(p), mine = (ball.x < NET_X) === (p.side === 0);
     if (!mine || !ball.power || ball.unblockable || ball.flight || Math.sign(ball.vx) === s) continue; // 상대가 보낸 강타만
-    const ch = cjChin(p), zx = ch.x + s * 30, zy = ch.y + 2;
+    const zx = p.x + s * 30, zy = p.y - 6; // 얼굴 앞 (v8.7부터 턱 끝은 맨 아래라 따로 정함)
     if (Math.hypot(ball.x - zx, ball.y - zy) < 22) {
       p.chinSaved = true; p.collided = true; p.gomuHit = { x: ball.x, y: ball.y, t: 8 };
       ball.vx = s * 3; ball.vy = -15; ball.power = false;
@@ -11758,9 +11759,11 @@ function drawLsLook(p, front) { // 버전마다 겉모습 (그림만): v2 발밑
 { const baseP = drawPlayer; drawPlayer = function (p) {
   const on = isLs(p) && !isMenu() && state !== 'select';
   if (on) drawLsLook(p, false);
-  const V = on ? LS_VER[lsVer(p)] : null;
+  const V = on ? LS_VER[lsVer(p)] : null, key = 'char' + p.char, keep = imgs[key];
+  if (on && lsVer(p) >= 2) imgs[key] = imgs[lsVer(p) >= 3 ? 'lsjV3' : 'lsjV2'] || keep; // v8.7 버전마다 다른 사진 (v1 / v2 / v3·v4)
   if (V && V.glow) { ctx.save(); ctx.shadowColor = V.col; ctx.shadowBlur = V.glow + Math.sin(performance.now() / 150) * 3; baseP(p); ctx.restore(); } // 버전 색으로 몸이 빛남
   else baseP(p);
+  imgs[key] = keep;
   if (on) drawLsLook(p, true);
 }; }
 // 업그레이드 순간 머리 위 '⬆ vX.0' 폭발 글자 + 이소정 스파이크 공에 버전 색 꼬리
@@ -11795,4 +11798,17 @@ function drawLsGloom() { // 선생님도 이제 한계다: 당한 사람 화면�
   if (!p.ai && D.pen < 99) return; // 노멀~헬: 원래대로 (경고 후 HP -1)
   cine = null; p.skillT = 0; p.mana = p.ai ? Math.max(0, manaMax(p) - 1) : manaMax(p);
   bossPop(p.ai ? `🤖 AI: ${ELEM[B.ban.e].name} 스킬은 압수 중이라 참음` : `🚫 ${ELEM[B.ban.e].name} 스킬 압수 중! (${Math.ceil(B.ban.t / 25)}초 뒤에 써)`, '#ff8a8a', 140, 40);
+}; }
+
+// ===== (v8.7) 최재훈: 3배 긴 턱으로 콩콩 뛰어다님 (그림만 — 위치·판정은 그대로) =====
+const CJ_LX = new WeakMap(); // 지난번 그릴 때 x (움직이는지 보려고, 게임 상태엔 안 넣음)
+{ const baseP = drawPlayer; drawPlayer = function (p) {
+  if (!isCj(p) || isMenu() || cine) { baseP(p); return; }
+  const lx = CJ_LX.has(p) ? CJ_LX.get(p) : p.x, moving = Math.abs(p.x - lx) > 0.3; CJ_LX.set(p, p.x);
+  const ground = p.y >= P_GROUND_Y - 1 && p.state === NORMAL, t = performance.now() / 1000;
+  const ph = Math.abs(Math.sin(t * (moving ? 11 : 4)));
+  const hop = ground ? ph * (moving ? 9 : 2.5) : 0, squash = ground && ph < 0.25 ? (moving ? 0.86 : 0.95) : 1; // 턱으로 착지할 때 찌그러짐
+  const fy = p.y + 32; ctx.save(); ctx.translate(p.x, fy - hop); ctx.scale(2 - squash, squash); ctx.translate(-p.x, -fy);
+  baseP(p); ctx.restore();
+  if (ground && moving && ph < 0.2) { ctx.fillStyle = 'rgba(200,170,120,.5)'; for (let i = -1; i <= 1; i += 2) { ctx.beginPath(); ctx.arc(p.x + i * 8, fy - 1, 2.5, 0, 7); ctx.fill(); } } // 턱 착지 먼지
 }; }
